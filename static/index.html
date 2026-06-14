@@ -1619,6 +1619,7 @@ function renderCommChart(data) {
       scales: {
         y: {
           beginAtZero: true,
+          max: Math.max(...values) > 0 ? Math.ceil(Math.max(...values) * 1.2) : undefined,
           ticks: {
             color: '#666',
             callback: v => {
