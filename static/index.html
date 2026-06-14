@@ -309,11 +309,7 @@
   .admin-pw-input { padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; width:90px; background:var(--bg); color:var(--text); outline:none; letter-spacing:.15em; font-family:monospace; }
   .admin-pw-input:focus { border-color:var(--red); }
 
-  /* ── Change-password modal ─────────────────────────────────────────────── */
-  #changePwModal { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:400; display:none; align-items:center; justify-content:center; }
-  #changePwModal.open { display:flex; }
-  .chpw-card { background:#141414; border:1px solid var(--border-bright); border-radius:14px; width:min(380px,95vw); padding:28px; }
-  .chpw-card h2 { font-size:15px; font-weight:600; color:var(--white); margin-bottom:20px; }
+  .auth-success { font-size:12px; color:#34d399; margin-bottom:12px; min-height:16px; }
 </style>
 </head>
 <body>
@@ -323,8 +319,9 @@
   <div class="auth-card">
     <div class="auth-logo"><div class="dot"></div><span>PropTrack</span></div>
     <div class="auth-tabs">
-      <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
-      <button class="auth-tab" onclick="showAuthTab('register')">Register</button>
+      <button class="auth-tab active" id="atab_login"    onclick="showAuthTab('login')">Login</button>
+      <button class="auth-tab"        id="atab_changepin" onclick="showAuthTab('changepin')">Change PIN</button>
+      <button class="auth-tab"        id="atab_register" onclick="showAuthTab('register')">Register</button>
     </div>
 
     <!-- Login form -->
@@ -333,6 +330,17 @@
       <div class="auth-field"><label>4-Digit PIN</label><input type="password" id="auth_pin" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')doLogin()"/></div>
       <div class="auth-error" id="authError"></div>
       <button class="auth-btn" onclick="doLogin()">Sign In</button>
+    </div>
+
+    <!-- Change PIN form -->
+    <div id="authChangePin" style="display:none">
+      <div class="auth-field"><label>Username</label><input type="text" id="cp_username" placeholder="your name"/></div>
+      <div class="auth-field"><label>Current PIN</label><input type="password" id="cp_old" maxlength="4" placeholder="••••"/></div>
+      <div class="auth-field"><label>New PIN</label><input type="password" id="cp_new" maxlength="4" placeholder="••••"/></div>
+      <div class="auth-field"><label>Confirm New PIN</label><input type="password" id="cp_new2" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')doChangePinPage()"/></div>
+      <div class="auth-error" id="cpError"></div>
+      <div class="auth-success" id="cpSuccess"></div>
+      <button class="auth-btn" onclick="doChangePinPage()">Update PIN</button>
     </div>
 
     <!-- Register form -->
@@ -358,7 +366,6 @@
 <header>
   <div class="logo"><div class="dot"></div>PropTrack <span id="headerUser"></span></div>
   <div style="display:flex;gap:8px;align-items:center">
-    <button class="btn btn-ghost btn-sm" onclick="openChangePw()">Change PIN</button>
     <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
     <button class="btn btn-ghost btn-sm" onclick="doLogout()">Logout</button>
   </div>
@@ -438,20 +445,6 @@
   </div>
 </div>
 
-<!-- ── Change PIN modal ──────────────────────────────────────────────────── -->
-<div id="changePwModal">
-  <div class="chpw-card">
-    <h2>Change PIN</h2>
-    <div class="auth-field"><label>Current PIN</label><input type="password" id="cpw_old" maxlength="4" placeholder="••••"/></div>
-    <div class="auth-field"><label>New PIN</label><input type="password" id="cpw_new" maxlength="4" placeholder="••••"/></div>
-    <div class="auth-field"><label>Confirm New PIN</label><input type="password" id="cpw_new2" maxlength="4" placeholder="••••"/></div>
-    <div class="auth-error" id="cpwError"></div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
-      <button class="btn btn-ghost" onclick="closeChangePw()">Cancel</button>
-      <button class="btn btn-primary" onclick="doChangePw()">Update PIN</button>
-    </div>
-  </div>
-</div>
 
 <!-- Detail Panel (inside appShell scope, but placed here for z-index) -->
 <div class="detail-overlay" id="detailOverlay" onclick="closePanel()"></div>
@@ -570,14 +563,18 @@ async function seedDefaultUsers() {
 }
 
 function showAuthTab(tab) {
-  document.getElementById('authLogin').style.display    = tab === 'login'    ? '' : 'none';
-  document.getElementById('authRegister').style.display = tab === 'register' ? '' : 'none';
-  document.getElementById('authPending').style.display  = tab === 'pending'  ? '' : 'none';
-  document.querySelectorAll('.auth-tab').forEach((b, i) =>
-    b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'))
-  );
+  document.getElementById('authLogin').style.display     = tab === 'login'     ? '' : 'none';
+  document.getElementById('authChangePin').style.display = tab === 'changepin' ? '' : 'none';
+  document.getElementById('authRegister').style.display  = tab === 'register'  ? '' : 'none';
+  document.getElementById('authPending').style.display   = tab === 'pending'   ? '' : 'none';
+  ['login','changepin','register'].forEach(t => {
+    const el = document.getElementById('atab_' + t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
   document.getElementById('authError').textContent = '';
   document.getElementById('regError').textContent  = '';
+  document.getElementById('cpError').textContent   = '';
+  document.getElementById('cpSuccess').textContent = '';
 }
 
 async function doLogin() {
@@ -690,29 +687,30 @@ async function adminChangePw(id) {
   alert('PIN updated.');
 }
 
-// ── Change own PIN ─────────────────────────────────────────────────────────
-function openChangePw() {
-  ['cpw_old','cpw_new','cpw_new2'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('cpwError').textContent = '';
-  document.getElementById('changePwModal').classList.add('open');
-}
-function closeChangePw() { document.getElementById('changePwModal').classList.remove('open'); }
-async function doChangePw() {
-  const oldPin = document.getElementById('cpw_old').value.trim();
-  const newPin = document.getElementById('cpw_new').value.trim();
-  const newPin2= document.getElementById('cpw_new2').value.trim();
-  const errEl  = document.getElementById('cpwError');
-  errEl.textContent = '';
-  if (!/^\d{4}$/.test(newPin))   { errEl.textContent = 'New PIN must be 4 digits.'; return; }
-  if (newPin !== newPin2)         { errEl.textContent = 'PINs do not match.'; return; }
+// ── Change PIN (from login page) ───────────────────────────────────────────
+async function doChangePinPage() {
+  const username = document.getElementById('cp_username').value.trim();
+  const oldPin   = document.getElementById('cp_old').value.trim();
+  const newPin   = document.getElementById('cp_new').value.trim();
+  const newPin2  = document.getElementById('cp_new2').value.trim();
+  const errEl    = document.getElementById('cpError');
+  const okEl     = document.getElementById('cpSuccess');
+  errEl.textContent = ''; okEl.textContent = '';
+  if (!username)                  { errEl.textContent = 'Please enter your username.'; return; }
+  if (!oldPin)                    { errEl.textContent = 'Please enter your current PIN.'; return; }
+  if (!/^\d{4}$/.test(newPin))   { errEl.textContent = 'New PIN must be exactly 4 digits.'; return; }
+  if (newPin !== newPin2)         { errEl.textContent = 'New PINs do not match.'; return; }
 
-  const snap = await getDocs(collection(db, 'users'));
-  const me   = snap.docs.find(d => d.id === currentUser.id);
-  if (!me || me.data().password !== oldPin) { errEl.textContent = 'Current PIN is incorrect.'; return; }
+  const snap  = await getDocs(collection(db, 'users'));
+  const match = snap.docs.find(d => {
+    const u = d.data();
+    return u.username.toLowerCase() === username.toLowerCase() && u.password === oldPin && u.status === 'approved';
+  });
+  if (!match) { errEl.textContent = 'Username or current PIN is incorrect.'; return; }
 
-  await updateDoc(doc(db, 'users', currentUser.id), { password: newPin });
-  closeChangePw();
-  alert('PIN updated successfully.');
+  await updateDoc(doc(db, 'users', match.id), { password: newPin });
+  ['cp_username','cp_old','cp_new','cp_new2'].forEach(id => document.getElementById(id).value = '');
+  okEl.textContent = '✓ PIN updated successfully. You can now log in.';
 }
 
 // ── constants ──────────────────────────────────────────────────────────────
@@ -1623,8 +1621,7 @@ function renderCommChart(data) {
 // ── expose functions to window for inline onclick handlers ─────────────────
 Object.assign(window, {
   // auth
-  showAuthTab, doLogin, doRegister, doLogout,
-  openChangePw, closeChangePw, doChangePw,
+  showAuthTab, doLogin, doRegister, doLogout, doChangePinPage,
   // admin
   approveUser, rejectUser, adminChangePw, loadAdminPanel,
   // app
