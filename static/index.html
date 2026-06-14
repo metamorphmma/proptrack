@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PropTrack — Real Estate Lead Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #111111;
+    --surface: #1a1a1a;
+    --surface2: #232323;
+    --white: #ffffff;
+    --offwhite: #f0f0f0;
+    --red: #9b1a1a;
+    --red-bright: #c0392b;
+    --red-light: #2a1010;
+    --red-mid: #1f0e0e;
+    --text: #f0f0f0;
+    --text-dim: #888888;
+    --text-muted: #555555;
+    --border: #2a2a2a;
+    --border-bright: #3a3a3a;
+    --shadow: 0 2px 8px rgba(0,0,0,.5);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,.7);
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Tab nav */
+  .tab-nav { background: #0d0d0d; border-bottom: 1px solid var(--border); display: flex; padding: 0 24px; gap: 0; position: sticky; top: 58px; z-index: 99; }
+  .tab-btn { padding: 12px 20px; font-size: 13px; font-weight: 500; color: var(--text-muted); background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; letter-spacing: .02em; }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--white); border-bottom-color: var(--red-bright); }
+
+  /* Commission view */
+  .comm-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+  .comm-header h2 { font-size: 16px; font-weight: 600; color: var(--white); }
+  .split-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; margin-bottom: 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .split-card .split-label { font-size: 13px; color: var(--text-dim); flex: 1; }
+  .split-card .split-label strong { color: var(--white); display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
+  .split-input-row { display: flex; align-items: center; gap: 8px; }
+  .split-input-row input { width: 80px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 15px; font-weight: 600; background: var(--surface2); color: var(--white); outline: none; text-align: center; }
+  .split-input-row input:focus { border-color: var(--red); }
+  .split-input-row span { font-size: 15px; color: var(--text-dim); }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin-bottom: 20px; }
+  .chart-card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 16px; }
+  .chart-wrap { position: relative; height: 240px; }
+  .comm-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .breakdown-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+  .breakdown-card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-bottom: 14px; }
+  .breakdown-month { margin-bottom: 18px; }
+  .breakdown-month .month-label { font-size: 13px; font-weight: 600; color: var(--white); margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .breakdown-month .month-total { color: var(--red-bright); }
+  .breakdown-deal { display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; background: var(--surface2); border-radius: 6px; margin-bottom: 5px; font-size: 12px; }
+  .breakdown-deal .deal-name { color: var(--text); font-weight: 500; }
+  .breakdown-deal .deal-amt { color: var(--text-dim); }
+  .no-comm { text-align: center; padding: 40px; color: var(--text-muted); font-size: 13px; }
+
+  /* Layout */
+  header { background: #0a0a0a; border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 58px; position: sticky; top: 0; z-index: 100; }
+  .logo { font-size: 17px; font-weight: 700; color: var(--white); display: flex; align-items: center; gap: 10px; letter-spacing: .02em; }
+  .logo .dot { width: 8px; height: 8px; background: var(--red-bright); border-radius: 50%; }
+  .logo span { color: var(--text-dim); font-weight: 400; font-size: 12px; letter-spacing: 0; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+
+  /* Summary module */
+  .summary-view-wrap { display: flex; gap: 0; align-items: flex-start; }
+  .summary-circles { display: flex; flex-direction: column; gap: 22px; padding: 8px 0; }
+  .metric-circle { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .metric-circle.clickable { cursor: pointer; }
+  .metric-circle.clickable:hover .circle-ring { filter: brightness(1.15); }
+  .circle-ring { width: 130px; height: 130px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; background: var(--surface); border: 5px solid var(--border); box-shadow: 0 0 0 5px rgba(255,255,255,.03); transition: filter .15s; }
+  .circle-ring .c-value { font-size: 26px; font-weight: 800; color: var(--white); line-height: 1; }
+  .circle-ring .c-sub { font-size: 10px; color: var(--text-muted); margin-top: 4px; }
+  .metric-circle .c-label { font-size: 10px; text-transform: uppercase; letter-spacing: .09em; color: var(--text-muted); text-align: center; max-width: 110px; line-height: 1.4; }
+  .circle-ring.accent-green { border-color: #34d399; box-shadow: 0 0 0 5px rgba(52,211,153,.07); }
+  .circle-ring.accent-green .c-value { color: #34d399; }
+  .circle-ring.accent-amber { border-color: #fbbf24; box-shadow: 0 0 0 5px rgba(251,191,36,.07); }
+  .circle-ring.accent-amber .c-value { color: #fbbf24; }
+  .metric-circle.green .c-label { color: #34d399; }
+  .metric-circle.amber .c-label { color: #fbbf24; }
+
+  /* Summary 2-column grid */
+  .summary-circles { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 20px; padding: 8px 0; justify-items: center; }
+
+  /* Leads main area next to summary */
+  .leads-main { flex: 1; min-width: 0; }
+
+  /* Legacy summary row (now unused on summary tab, kept for safety) */
+  .summary { display: none; }
+
+  /* Legacy stat-card (kept for commission tracker) */
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .stat-card .label { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); margin-bottom: 8px; }
+  .stat-card .value { font-size: 22px; font-weight: 700; color: var(--white); }
+  .stat-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .stat-card.red-accent { border-color: var(--red); }
+  .stat-card.red-accent .value { color: var(--red-bright); }
+  .stat-card.blue-accent { border-color: #0369a1; }
+  .stat-card.blue-accent .value { color: #38bdf8; }
+
+  /* Toolbar */
+  .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar input[type=text] { flex: 1; min-width: 180px; padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; background: var(--surface); color: var(--text); }
+  .toolbar input[type=text]:focus { border-color: var(--red); }
+  .toolbar input[type=text]::placeholder { color: var(--text-muted); }
+  select.filter-sel { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; outline: none; background: var(--surface); color: var(--text); cursor: pointer; }
+  select.filter-sel:focus { border-color: var(--red); }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; border: none; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; letter-spacing: .02em; }
+  .btn-primary { background: var(--red); color: var(--white); }
+  .btn-primary:hover { background: var(--red-bright); }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--border-bright); color: var(--white); }
+  .btn-danger { background: var(--red-mid); color: var(--red-bright); border: 1px solid var(--red); }
+  .btn-danger:hover { background: var(--red-light); }
+  .btn-sm { padding: 5px 11px; font-size: 11px; }
+  .btn-icon { padding: 5px 7px; border-radius: 6px; background: transparent; border: none; cursor: pointer; color: var(--text-muted); font-size: 14px; }
+  .btn-icon:hover { color: var(--white); }
+
+  /* Lead cards */
+  .leads-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 14px; }
+  .lead-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+  .lead-card:hover { border-color: var(--border-bright); box-shadow: var(--shadow); }
+  .lead-card.active { border-color: var(--red); }
+  .lead-card-top { padding: 16px; }
+  .lead-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .client-name { font-size: 15px; font-weight: 600; color: var(--white); }
+  .stage-badge { font-size: 10px; padding: 3px 9px; border-radius: 20px; font-weight: 600; white-space: nowrap; letter-spacing: .04em; text-transform: uppercase; }
+  .lead-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .tag { font-size: 10px; padding: 2px 8px; border-radius: 4px; background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); letter-spacing: .02em; }
+  .tag.prob-high { background: #0d2a18; color: #34d399; border-color: #1a4a2a; }
+  .tag.prob-mid { background: #2a1f08; color: #fbbf24; border-color: #3a2f10; }
+  .tag.prob-low { background: var(--red-mid); color: #f87171; border-color: var(--red); }
+  .tag.lost { background: #1a1a1a; color: var(--text-muted); border-color: var(--border); }
+  .lead-value { font-size: 12px; color: var(--text-dim); }
+  .lead-value strong { color: var(--text); }
+
+  /* Progress bar on card */
+  .lead-progress { padding: 10px 16px 14px; background: #141414; border-top: 1px solid var(--border); }
+  .progress-track { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 6px; }
+  .progress-fill { height: 100%; background: var(--red-bright); border-radius: 2px; transition: width .3s; }
+  .progress-fill.lost { background: var(--text-muted); }
+  .stage-label { font-size: 10px; color: var(--text-muted); letter-spacing: .04em; text-transform: uppercase; }
+
+  /* Stage badge colors */
+  .s-prospecting { background: #222; color: #aaa; }
+  .s-exclusive { background: #0d1e3a; color: #60a5fa; }
+  .s-viewings { background: #1f1a08; color: #fbbf24; }
+  .s-offer { background: #1a0d26; color: #c084fc; }
+  .s-counter-offer { background: #1a1208; color: #fb923c; }
+  .s-accepted { background: #0a2018; color: #34d399; }
+  .s-completed { background: var(--red); color: #fff; }
+  .s-lost { background: #222; color: #666; }
+
+  /* Offer / counter-offer items */
+  .offer-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; }
+  .offer-item.accepted-highlight { border-color: var(--red); }
+
+  /* Panel */
+  .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; display: none; }
+  .detail-overlay.open { display: block; }
+  .detail-panel { position: fixed; top: 0; right: 0; width: min(660px, 100vw); height: 100vh; background: #111; z-index: 201; display: flex; flex-direction: column; box-shadow: var(--shadow-lg); border-left: 1px solid var(--border); transform: translateX(100%); transition: transform .25s; }
+  .detail-panel.open { transform: translateX(0); }
+  .panel-header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; background: #0d0d0d; }
+  .panel-header h2 { font-size: 17px; font-weight: 600; color: var(--white); }
+  .panel-body { flex: 1; overflow-y: auto; padding: 24px; }
+  .panel-section { margin-bottom: 28px; }
+  .panel-section h3 { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); margin-bottom: 14px; font-weight: 600; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+
+  /* Info grid */
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .info-item label { font-size: 10px; color: var(--text-muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .06em; }
+  .info-item .val { font-size: 14px; font-weight: 500; color: var(--white); }
+
+  /* Current stage card */
+  .current-stage-card { background: var(--surface2); border: 1px solid var(--border-bright); border-radius: var(--radius); overflow: hidden; }
+  .csc-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .csc-header .stage-name { font-size: 13px; font-weight: 600; color: var(--white); display: flex; align-items: center; gap: 8px; }
+  .csc-header .stage-icon { font-size: 16px; }
+  .csc-body { padding: 16px 18px; }
+
+  /* Stage stepper (compact, read-only) */
+  .stage-stepper { display: flex; align-items: center; gap: 0; margin-bottom: 16px; }
+  .ss-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .ss-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+  .ss-dot.done { background: var(--red-bright); }
+  .ss-dot.current { background: var(--white); box-shadow: 0 0 0 3px rgba(255,255,255,.15); }
+  .ss-dot.lost { background: var(--text-muted); }
+  .ss-line { flex: 1; height: 2px; background: var(--border); }
+  .ss-line.done { background: var(--red-bright); }
+  .ss-label { font-size: 9px; color: var(--text-muted); text-align: center; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70px; }
+  .ss-label.current { color: var(--white); }
+  .ss-dot.clickable { cursor: pointer; transition: transform .12s; }
+  .ss-dot.clickable:hover { transform: scale(1.6); }
+  .ss-dot.viewing { background: #fbbf24 !important; box-shadow: 0 0 0 3px rgba(251,191,36,.25) !important; }
+  .ss-label.viewing { color: #fbbf24; font-weight: 700; }
+  .view-only-banner { display:flex;align-items:center;gap:8px;background:#1f1a08;border:1px solid #3a2f10;border-radius:6px;padding:7px 12px;margin-bottom:14px;font-size:11px;color:#fbbf24; }
+  .stepper-row { display: flex; align-items: center; gap: 0; margin-bottom: 6px; }
+
+  /* Move stage controls */
+  .stage-move { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .stage-move-btn { padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--surface); color: var(--text-dim); transition: all .12s; }
+  .stage-move-btn:hover { border-color: var(--red); color: var(--white); }
+  .stage-move-btn.active-stage { border-color: var(--red-bright); color: var(--white); background: var(--red-mid); }
+  .stage-move-btn.lost-btn { border-color: var(--border); color: var(--text-muted); }
+  .stage-move-btn.lost-btn:hover { border-color: #555; color: var(--text-dim); background: #1f1f1f; }
+
+  /* Probability selector */
+  .prob-selector { display: flex; gap: 6px; margin-bottom: 16px; align-items: center; }
+  .prob-label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); margin-right: 4px; }
+  .prob-btn { padding: 5px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; border: 1px solid transparent; transition: all .12s; }
+  .prob-btn.high { border-color: #1a4a2a; color: #6ee7b7; background: #0a1f10; }
+  .prob-btn.high:hover, .prob-btn.high.selected { background: #0d2a18; border-color: #34d399; color: #34d399; }
+  .prob-btn.mid { border-color: #3a2f10; color: #fcd34d; background: #1f1a08; }
+  .prob-btn.mid:hover, .prob-btn.mid.selected { background: #2a2008; border-color: #fbbf24; color: #fbbf24; }
+  .prob-btn.low { border-color: var(--red); color: #fca5a5; background: var(--red-mid); }
+  .prob-btn.low:hover, .prob-btn.low.selected { background: var(--red-light); border-color: #f87171; color: #f87171; }
+  .prob-btn.dimmed { border-color: var(--border) !important; color: var(--text-muted) !important; background: var(--surface2) !important; opacity: .45; }
+
+  /* Remarks */
+  .remarks-list { margin-bottom: 10px; }
+  .remark-item { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; line-height: 1.5; }
+  .remark-item .remark-date { font-size: 10px; color: var(--text-muted); float: right; margin-left: 10px; }
+  .add-remark-form { display: flex; gap: 6px; }
+  .add-remark-form input { flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; outline: none; background: var(--surface); color: var(--text); }
+  .add-remark-form input:focus { border-color: var(--red); }
+  .add-remark-form input::placeholder { color: var(--text-muted); }
+
+  /* Viewings */
+  .viewing-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 9px 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; }
+  .viewing-item .buyer { font-size: 13px; font-weight: 500; color: var(--white); }
+  .viewing-item .vdate { color: var(--text-dim); font-size: 11px; }
+  .viewing-item .vnotes { color: var(--text-muted); font-size: 11px; margin-top: 3px; }
+  .add-viewing-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .add-viewing-form .form-group label { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 4px; }
+  .add-viewing-form input { padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; outline: none; background: var(--surface); color: var(--text); width: 100%; }
+  .add-viewing-form input:focus { border-color: var(--red); }
+  .add-viewing-form input::placeholder { color: var(--text-muted); }
+  .add-viewing-form .full { grid-column: 1/-1; }
+
+  /* Divider */
+  .divider { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); margin: 14px 0 10px; }
+
+  /* Modal */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 300; display: none; align-items: center; justify-content: center; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #141414; border: 1px solid var(--border-bright); border-radius: 14px; width: min(500px, 95vw); max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
+  .modal-header { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h2 { font-size: 16px; font-weight: 600; color: var(--white); }
+  .modal-body { padding: 20px 22px; }
+  .modal-footer { padding: 14px 22px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+
+  /* Form */
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1/-1; }
+  .form-group label { font-size: 11px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; }
+  .form-group input, .form-group select { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; font-family: inherit; background: var(--surface); color: var(--text); }
+  .form-group input:focus, .form-group select:focus { border-color: var(--red); }
+  .form-group input::placeholder { color: var(--text-muted); }
+  .form-group select option { background: #1a1a1a; }
+
+  /* Empty */
+  .empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+  .empty .icon { font-size: 40px; margin-bottom: 12px; opacity: .5; }
+  .empty p { font-size: 13px; }
+
+  @media (max-width: 600px) {
+    .form-row { grid-template-columns: 1fr; }
+    .info-grid { grid-template-columns: 1fr; }
+    .add-viewing-form { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><div class="dot"></div>PropTrack <span>Welcome, Martyn Lim</span></div>
+  <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
+</header>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('summary')">Summary</button>
+  <button class="tab-btn" onclick="switchTab('leads')">Leads</button>
+  <button class="tab-btn" onclick="switchTab('commission')">Commission Tracker</button>
+</nav>
+
+<main>
+  <!-- SUMMARY VIEW -->
+  <div id="summary-view">
+    <div id="summaryCircles" class="summary-circles"></div>
+  </div>
+
+  <!-- LEADS VIEW -->
+  <div id="leads-view" style="display:none">
+  <div id="filterBanner" style="display:none;align-items:center;gap:10px;background:#1f1a08;border:1px solid #3a2f10;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#fbbf24">
+    <span>Showing: <strong id="filterBannerLabel"></strong></span>
+    <button class="btn-icon" onclick="clearLeadsFilter()" style="color:#fbbf24;margin-left:auto">✕ Clear</button>
+  </div>
+  <div class="toolbar">
+    <input type="text" id="searchInput" placeholder="Search clients…" oninput="renderLeads()"/>
+    <select class="filter-sel" id="stageFilter" onchange="renderLeads()">
+      <option value="">All Stages</option>
+      <option value="prospecting">Prospecting</option>
+      <option value="exclusive">Appointed</option>
+      <option value="viewings">Viewed</option>
+      <option value="offer">Offer Made</option>
+      <option value="counter_offer">Counter Offer</option>
+      <option value="accepted">Offer Accepted</option>
+      <option value="completed">Completed</option>
+      <option value="lost">Lost</option>
+    </select>
+  </div>
+  <div class="leads-grid" id="leadsGrid"></div>
+  </div><!-- /leads-view -->
+
+  <!-- COMMISSION VIEW -->
+  <div id="commission-view" style="display:none">
+    <div class="comm-header">
+      <h2>Commission Tracker</h2>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" id="btnGross" onclick="setCommMode('gross')">Gross</button>
+        <button class="btn btn-primary btn-sm" id="btnNet" onclick="setCommMode('net')">Net</button>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3 id="commChartTitle">Expected Net Payout — Next 6 Months</h3>
+      <div class="chart-wrap"><canvas id="commChart"></canvas></div>
+    </div>
+
+  </div><!-- /commission-view -->
+</main>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detailOverlay" onclick="closePanel()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div class="panel-header">
+    <h2 id="panelTitle">Lead Details</h2>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="openEditModal()">Edit</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteLead()">Delete</button>
+      <button class="btn-icon" onclick="closePanel()">✕</button>
+    </div>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+</div>
+
+<!-- New / Edit Lead Modal -->
+<div class="modal-backdrop" id="leadModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">New Lead</h2>
+      <button class="btn-icon" onclick="closeLeadModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Client Name *</label>
+          <input id="f_name" type="text" placeholder="Full name"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>Property Address</label>
+          <input id="f_property_address" type="text" placeholder="e.g. 12 Clementi Ave 3, #08-21, Singapore 120012"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Property Type *</label>
+          <select id="f_property_type">
+            <option value="">Select…</option>
+            <option value="HDB">HDB</option>
+            <option value="Condo">Condo</option>
+            <option value="Landed">Landed</option>
+            <option value="Commercial">Commercial</option>
+            <option value="Industrial">Industrial</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Stage</label>
+          <select id="f_stage">
+            <option value="prospecting">Prospecting</option>
+            <option value="exclusive">Appointed</option>
+            <option value="viewings">Viewed</option>
+            <option value="offer">Offer Made</option>
+            <option value="counter_offer">Counter Offer</option>
+            <option value="accepted">Offer Accepted</option>
+            <option value="completed">Completed</option>
+            <option value="lost">Lost</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Asking Price ($)</label>
+          <input id="f_projected_value" type="number" placeholder="e.g. 1200000"/>
+        </div>
+        <div class="form-group">
+          <label>Gross Commission (%)</label>
+          <input id="f_commission_pct" type="number" step="0.1" placeholder="e.g. 1.5"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Linked Lead (ID)</label>
+          <input id="f_linked_lead_id" type="number" placeholder="Lead ID (optional)"/>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeLeadModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLead()">Save Lead</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── constants ──────────────────────────────────────────────────────────────
+const STAGES = [
+  { key: 'prospecting', label: 'Prospecting', icon: '🔍' },
+  { key: 'exclusive',     label: 'Appointed',     icon: '🤝' },
+  { key: 'viewings',      label: 'Viewed',        icon: '👁' },
+  { key: 'offer',         label: 'Offer Made',    icon: '📝' },
+  { key: 'counter_offer', label: 'Counter Offer', icon: '🔄' },
+  { key: 'accepted',      label: 'Offer Accepted',icon: '✅' },
+  { key: 'completed',     label: 'Completed',     icon: '🏆' },
+  { key: 'lost',          label: 'Lost',          icon: '✗' },
+];
+const STAGE_IDX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
+const PROGRESS_STAGES = ['prospecting','exclusive','viewings','offer','counter_offer','accepted','completed'];
+
+let leads = [];
+let activeLead = null;
+let editingId = null;
+let panelViewStage = null; // null = current stage; string = viewing a past stage
+let leadsFilter = null; // null | 'active' | 'highPotential' | 'commMonth'
+let commMonthFilter = null; // e.g. '2026-10'
+
+function addMonthsJS(date, n) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
+function payoutMonthKey(acceptedAt) {
+  const d = addMonthsJS(new Date(acceptedAt.slice(0, 10)), 4);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+async function api(method, path, body) {
+  const res = await fetch(path, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function loadLeads() {
+  leads = await api('GET', '/api/leads');
+  renderLeads();
+  if (activeTab === 'summary') loadSummaryView();
+  if (activeLead) {
+    const updated = leads.find(l => l.id === activeLead.id);
+    if (updated) { activeLead = updated; renderPanel(); }
+  }
+}
+
+async function loadSummaryView() {
+  const commData = await api('GET', '/api/commission');
+  const active = leads.filter(l => l.stage !== 'lost' && l.stage !== 'completed');
+  const highPotential = leads.filter(l => l.stage !== 'lost' && (l.viewings || []).some(v => v.win_probability === 'high'));
+  const highVal = highPotential.reduce((s, l) => s + (l.projected_value || 0), 0);
+  const highComm = highPotential.reduce((s, l) => s + (l.projected_value || 0) * (l.commission_pct || 0) / 100, 0);
+
+  // Net comm next 3 months: sum first 3 months from commission data
+  const monthEntries = Object.entries(commData.months);
+  const net3m = monthEntries.slice(0, 3).reduce((s, [, m]) => s + (m.net_total || 0), 0);
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const newIn30 = leads.filter(l => new Date(l.created_at) >= thirtyDaysAgo).length;
+
+  function ring(val, healthy, label, clickFn) {
+    const accent = healthy ? 'green' : 'amber';
+    const ringCls = healthy ? 'accent-green' : 'accent-amber';
+    const clickableClass = clickFn ? ' clickable' : '';
+    return `
+      <div class="metric-circle ${accent}${clickableClass}" ${clickFn ? 'onclick="'+clickFn+'"' : ''}>
+        <div class="circle-ring ${ringCls}"><div class="c-value">${val}</div></div>
+        <div class="c-label">${label}</div>
+      </div>`;
+  }
+
+  document.getElementById('summaryCircles').innerHTML =
+    ring(newIn30,              newIn30 >= 5,             'Leads Acquired<br>Last 30 Days',         "goToLeads('recent')")                          +
+    ring(active.length,        active.length > 0,        'Active Leads',                           "goToLeads('active')")       +
+    ring(highPotential.length, highPotential.length > 0, 'Active Leads<br>(High Potential)',         "goToLeads('highPotential')") +
+    ring('$'+fmtM(highVal),    highVal > 0,              'Pipeline Value<br>(High Potential)',      '')                          +
+    ring('$'+fmtM(highComm),   highComm > 0,             'Est. Gross Comm<br>(High Potential)',     '')                          +
+    ring('$'+fmtM(net3m),      net3m > 0,                'Est. Net Comm<br>Next 3 Months',          '');
+}
+
+function fmtM(n) {
+  if (!n) return '0';
+  if (n >= 1e6) return (n/1e6).toFixed(2) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(0) + 'K';
+  return n.toFixed(0);
+}
+function fmtNum(n) { return n ? '$' + Number(n).toLocaleString() : '—'; }
+function fmtDate(str, short) {
+  if (!str) return '';
+  const d = new Date(str);
+  if (isNaN(d)) return str;
+  if (short) return d.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function goToLeads(filter) {
+  leadsFilter = filter;
+  commMonthFilter = null;
+  switchTab('leads');
+}
+function goToCommMonth(monthKey) {
+  commMonthFilter = monthKey;
+  leadsFilter = 'commMonth';
+  switchTab('leads');
+}
+function clearLeadsFilter() {
+  leadsFilter = null;
+  commMonthFilter = null;
+  document.getElementById('filterBanner').style.display = 'none';
+  renderLeads();
+}
+
+function renderLeads() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const sf = document.getElementById('stageFilter').value;
+
+  // Apply summary filter
+  const banner = document.getElementById('filterBanner');
+  if (leadsFilter === 'active') {
+    banner.style.display = 'flex';
+    document.getElementById('filterBannerLabel').textContent = 'Active leads (excluding lost & completed)';
+  } else if (leadsFilter === 'highPotential') {
+    banner.style.display = 'flex';
+    document.getElementById('filterBannerLabel').textContent = 'High potential leads only';
+  } else if (leadsFilter === 'recent') {
+    banner.style.display = 'flex';
+    document.getElementById('filterBannerLabel').textContent = 'Leads acquired in the last 30 days';
+  } else if (leadsFilter === 'commMonth' && commMonthFilter) {
+    banner.style.display = 'flex';
+    document.getElementById('filterBannerLabel').textContent = `Commission payout: ${fmtMonthKey(commMonthFilter)}`;
+  } else {
+    banner.style.display = 'none';
+  }
+
+  let filtered = leads.filter(l => {
+    if (leadsFilter === 'active' && (l.stage === 'lost' || l.stage === 'completed')) return false;
+    if (leadsFilter === 'highPotential' && !(l.viewings || []).some(v => v.win_probability === 'high')) return false;
+    if (leadsFilter === 'recent' && new Date(l.created_at) < new Date(Date.now() - 30*24*60*60*1000)) return false;
+    if (leadsFilter === 'commMonth') {
+      if (!l.accepted_at) return false;
+      if (payoutMonthKey(l.accepted_at) !== commMonthFilter) return false;
+    }
+    if (q && !l.client_name.toLowerCase().includes(q)) return false;
+    if (sf && l.stage !== sf) return false;
+    return true;
+  });
+  const grid = document.getElementById('leadsGrid');
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="icon">🏠</div><p>No leads found.<br/>Click "+ New Lead" to get started.</p></div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(l => leadCard(l)).join('');
+}
+
+// ── helpers ────────────────────────────────────────────────────────────────
+function progressPct(stage) {
+  const i = PROGRESS_STAGES.indexOf(stage);
+  if (i < 0) return 0;
+  return Math.round((i / (PROGRESS_STAGES.length - 1)) * 100);
+}
+function stageLabel(key) { return (STAGES.find(s => s.key === key) || {}).label || key; }
+function stageCls(key)   { return `s-${key.replace('_', '-')}`; }
+function probTag(prob) {
+  if (!prob) return '';
+  const map = { high: 'prob-high', mid: 'prob-mid', low: 'prob-low' };
+  return `<span class="tag ${map[prob] || ''}">${prob.toUpperCase()} probability</span>`;
+}
+function pctDiff(price, asking) {
+  if (!asking || !price) return '';
+  const diff = (price - asking) / asking * 100;
+  const sign = diff >= 0 ? '+' : '';
+  const color = diff >= 0 ? '#34d399' : '#f87171';
+  return `<span style="color:${color};font-weight:500">${sign}${diff.toFixed(1)}% vs asking</span>`;
+}
+function updatePctDisplay(inputId, spanId) {
+  const price = parseFloat(document.getElementById(inputId)?.value);
+  const span = document.getElementById(spanId);
+  if (!span) return;
+  span.innerHTML = pctDiff(price, activeLead?.projected_value);
+}
+
+// ── lead card ──────────────────────────────────────────────────────────────
+function leadCard(l) {
+  const isLost = l.stage === 'lost';
+  const pct = isLost ? 100 : progressPct(l.stage);
+  const viewCount  = (l.viewings || []).length;
+  const offerCount = (l.offers   || []).length;
+  return `<div class="lead-card${activeLead?.id === l.id ? ' active' : ''}" onclick="openPanel(${l.id})">
+    <div class="lead-card-top">
+      <div class="lead-card-header">
+        <div class="client-name">${esc(l.client_name)}</div>
+        <span class="stage-badge ${stageCls(l.stage)}">${stageLabel(l.stage)}</span>
+      </div>
+      <div class="lead-meta">
+        <span class="tag">${l.property_type}</span>
+        ${viewCount  > 0 ? `<span class="tag">👁 ${viewCount} viewed</span>` : ''}
+        ${offerCount > 0 ? `<span class="tag">📝 ${offerCount} offer${offerCount>1?'s':''}</span>` : ''}
+        ${l.linked_lead_id ? `<span class="tag">🔗 #${l.linked_lead_id}</span>` : ''}
+      </div>
+      <div class="lead-value">${l.projected_value ? `<strong>${fmtNum(l.projected_value)}</strong>` : ''}${l.commission_pct ? ` · ${l.commission_pct}% gross comm` : ''}</div>
+    </div>
+    <div class="lead-progress">
+      <div class="progress-track"><div class="progress-fill${isLost?' lost':''}" style="width:${pct}%"></div></div>
+      <div class="stage-label">${isLost ? 'Deal lost' : stageLabel(l.stage)}</div>
+    </div>
+  </div>`;
+}
+
+// ── panel ──────────────────────────────────────────────────────────────────
+function setViewStage(stage) {
+  panelViewStage = (panelViewStage === stage) ? null : stage; // toggle off if same
+  renderPanel();
+}
+
+function openPanel(id) {
+  activeLead = leads.find(l => l.id === id);
+  panelViewStage = null;
+  if (!activeLead) return;
+  document.getElementById('detailOverlay').classList.add('open');
+  document.getElementById('detailPanel').classList.add('open');
+  renderPanel();
+  renderLeads();
+}
+function closePanel() {
+  activeLead = null;
+  document.getElementById('detailOverlay').classList.remove('open');
+  document.getElementById('detailPanel').classList.remove('open');
+  renderLeads();
+}
+
+function renderPanel() {
+  if (!activeLead) return;
+  const l = activeLead;
+  document.getElementById('panelTitle').textContent = l.client_name;
+
+  const commVal = l.projected_value && l.commission_pct
+    ? `$${Number(l.projected_value * l.commission_pct / 100).toLocaleString()}` : '—';
+  const linkedHtml = l.linked_lead_id
+    ? `<a href="#" onclick="openPanel(${l.linked_lead_id});return false;" style="color:var(--red-bright)">Lead #${l.linked_lead_id}</a>` : '—';
+
+  const si = PROGRESS_STAGES.indexOf(l.stage);
+  const isLost = l.stage === 'lost';
+  const viewStage = panelViewStage || l.stage;
+  const viewOnly  = viewStage !== l.stage;
+
+  // Stepper — past and current stages are clickable
+  let stepDots = '<div class="stepper-row">';
+  PROGRESS_STAGES.forEach((s, i) => {
+    const done      = !isLost && i < si;
+    const cur       = !isLost && i === si;
+    const isViewing = s === panelViewStage;
+    const clickable = done || cur;
+    const dotCls    = [
+      isLost ? 'lost' : done ? 'done' : cur ? 'current' : '',
+      clickable ? 'clickable' : '',
+      isViewing ? 'viewing' : '',
+    ].join(' ').trim();
+    if (i > 0) stepDots += `<div class="ss-line${done?' done':''}"></div>`;
+    stepDots += `<div class="ss-dot ${dotCls}" ${clickable ? `onclick="setViewStage('${s}')" title="${stageLabel(s)}"` : ''}></div>`;
+  });
+  stepDots += '</div><div class="stepper-row" style="margin-top:4px">';
+  PROGRESS_STAGES.forEach((s, i) => {
+    const done      = !isLost && i < si;
+    const cur       = !isLost && i === si;
+    const isViewing = s === panelViewStage;
+    const clickable = done || cur;
+    const labelCls  = (!isLost && i === si ? ' current' : '') + (isViewing ? ' viewing' : '');
+    if (i > 0) stepDots += '<div style="flex:1"></div>';
+    stepDots += `<div class="ss-label${labelCls}" ${clickable ? `style="cursor:pointer" onclick="setViewStage('${s}')"` : ''}>${stageLabel(s)}</div>`;
+  });
+  stepDots += '</div>';
+
+  // Remarks for the stage being viewed
+  const curRemarks = (l.remarks || []).filter(r => r.stage === viewStage);
+  const remarksList = curRemarks.map(r => `
+    <div class="remark-item">
+      <span class="remark-date">${fmtDate(r.created_at)}</span>${esc(r.remark)}
+    </div>`).join('') || '<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">No remarks yet.</p>';
+
+
+
+  // Move stage buttons (only shown when on current stage)
+  const moveButtons = STAGES.map(s => {
+    const cur = s.key === l.stage;
+    return `<button class="stage-move-btn${cur?' active-stage':''}${s.key==='lost'?' lost-btn':''}"
+      onclick="${cur?'':('moveTo(\''+s.key+'\')')}" ${cur?'disabled':''}>
+      ${s.icon} ${s.label}</button>`;
+  }).join('');
+
+  // Stage-specific content
+  const stageContent = buildStageContent(l, viewStage, viewOnly);
+
+  document.getElementById('panelBody').innerHTML = `
+    <div class="panel-section">
+      <h3>Client Details</h3>
+      <div class="info-grid">
+        <div class="info-item"><label>Property Type</label><div class="val">${l.property_type}</div></div>
+        <div class="info-item"><label>Transaction</label><div class="val">Sell</div></div>
+        ${l.property_address ? `<div class="info-item" style="grid-column:1/-1"><label>Property Address</label><div class="val">${esc(l.property_address)}</div></div>` : ''}
+        <div class="info-item"><label>Asking Price</label><div class="val">${fmtNum(l.projected_value)}</div></div>
+        <div class="info-item"><label>Gross Commission</label><div class="val">${l.commission_pct?l.commission_pct+'%':'—'}${commVal!=='—'?' · '+commVal:''}</div></div>
+        <div class="info-item"><label>Linked Lead</label><div class="val">${linkedHtml}</div></div>
+      </div>
+    </div>
+    <div class="panel-section">
+      <h3>Deal Lifecycle</h3>
+      ${stepDots}
+      <div style="margin-top:18px">
+        <div class="current-stage-card">
+          <div class="csc-header">
+            <div class="stage-name">
+              <span class="stage-icon">${(STAGES.find(s=>s.key===viewStage)||{}).icon||''}</span>
+              ${stageLabel(viewStage)}
+              ${viewOnly
+                ? `<span class="stage-badge s-${viewStage.replace('_','-')}" style="font-size:9px">Viewing</span>`
+                : (isLost?'':`<span class="stage-badge ${stageCls(l.stage)}" style="font-size:9px">Current</span>`)
+              }
+            </div>
+          </div>
+          <div class="csc-body">
+            ${viewOnly ? '<div class="view-only-banner">👁 View only — click the current stage dot to resume editing</div>' : ''}
+            ${stageContent}
+            <div class="divider">Remarks</div>
+            <div class="remarks-list">${remarksList}</div>
+            ${!viewOnly ? `
+            <div class="add-remark-form">
+              <input id="remark_input" type="text" placeholder="Add a remark for this stage…" onkeydown="if(event.key==='Enter')addRemark()"/>
+              <button class="btn btn-ghost btn-sm" onclick="addRemark()">Add</button>
+            </div>
+            <div class="divider" style="margin-top:16px">Move to Stage</div>
+            <div class="stage-move">${moveButtons}</div>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+// ── stage-specific sections ────────────────────────────────────────────────
+function buildStageContent(l, viewStage, viewOnly) {
+  switch (viewStage) {
+    case 'viewings':      return buildViewingsContent(l, viewOnly);
+    case 'offer':         return buildOfferContent(l, viewOnly);
+    case 'counter_offer': return buildCounterOfferContent(l, viewOnly);
+    case 'accepted':      return buildAcceptedContent(l, viewOnly);
+    default: return '';
+  }
+}
+
+function buildViewingsContent(l, viewOnly) {
+  const viewings = l.viewings || [];
+  const today = new Date().toISOString().split('T')[0];
+  const list = viewings.map(v => {
+    const p = v.win_probability;
+    return `
+    <div class="viewing-item" style="flex-direction:column;align-items:stretch;gap:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div class="buyer">${esc(v.buyer_name || 'Unknown buyer')}</div>
+          <div class="vdate">${fmtDate(v.viewing_date, true)}</div>
+          ${v.counterpart_name||v.counterpart_number ? `<div class="vnotes">Counterpart: ${esc(v.counterpart_name||'')}${v.counterpart_number?' · '+esc(v.counterpart_number):''}</div>` : ''}
+          ${viewOnly
+            ? (v.notes ? `<div class="vnotes">${esc(v.notes)}</div>` : '')
+            : `<div class="vnotes-edit" id="vnotes_display_${v.id}">
+                ${v.notes ? `<span>${esc(v.notes)}</span>` : '<span style="color:var(--text-muted);font-style:italic">Add notes…</span>'}
+                <button class="btn-icon" style="font-size:11px;padding:1px 5px;margin-left:4px" onclick="startEditNotes(${v.id},${JSON.stringify(v.notes||'')})">✎</button>
+               </div>
+               <div class="vnotes-edit" id="vnotes_form_${v.id}" style="display:none;margin-top:4px">
+                 <input id="vnotes_input_${v.id}" type="text" value="${esc(v.notes||'')}" style="flex:1;font-size:12px;padding:4px 7px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--white)" onkeydown="if(event.key==='Enter')saveNotes(${v.id});if(event.key==='Escape')cancelEditNotes(${v.id})"/>
+                 <button class="btn btn-primary btn-sm" style="padding:3px 10px" onclick="saveNotes(${v.id})">Save</button>
+                 <button class="btn btn-ghost btn-sm" style="padding:3px 10px" onclick="cancelEditNotes(${v.id})">✕</button>
+               </div>`
+          }
+        </div>
+        ${!viewOnly ? `<button class="btn-icon" onclick="deleteViewing(${v.id})">✕</button>` : ''}
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Offer probability</span>
+        ${viewOnly
+          ? (p ? `<span class="prob-btn ${p} selected" style="pointer-events:none">${p.charAt(0).toUpperCase()+p.slice(1)}</span>` : '<span style="font-size:11px;color:var(--text-muted)">Not set</span>')
+          : `<button class="prob-btn high${p==='high'?' selected':p?' dimmed':''}" onclick="setViewingProb(${v.id},'high')">High</button>
+             <button class="prob-btn mid${p==='mid'?' selected':p?' dimmed':''}"  onclick="setViewingProb(${v.id},'mid')">Mid</button>
+             <button class="prob-btn low${p==='low'?' selected':p?' dimmed':''}"  onclick="setViewingProb(${v.id},'low')">Low</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+  return `
+    <div style="margin-bottom:16px">
+      <div class="divider">Viewing Records (${viewings.length})</div>
+      ${list || '<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">No viewings recorded yet.</p>'}
+      ${!viewOnly ? `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:8px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px">Add Viewing</div>
+        <div class="add-viewing-form">
+          <div class="form-group"><label>Buyer Name</label><input id="v_buyer" type="text" placeholder="e.g. John Tan"/></div>
+          <div class="form-group"><label>Viewed Date *</label><input id="v_date" type="date" value="${today}"/></div>
+          <div class="form-group"><label>Counterpart Agent Name</label><input id="v_cp_name" type="text" placeholder="Agent name"/></div>
+          <div class="form-group"><label>Counterpart Agent Number</label><input id="v_cp_num" type="text" placeholder="e.g. 9123 4567"/></div>
+          <div class="form-group full"><label>Notes</label><input id="v_notes" type="text" placeholder="Any remarks…"/></div>
+          <button class="btn btn-ghost btn-sm full" onclick="addViewing()">+ Add Viewing Record</button>
+        </div>
+      </div>` : ''}
+    </div>`;
+}
+
+function buildOfferContent(l, viewOnly) {
+  const offers   = l.offers   || [];
+  const viewings = l.viewings || [];
+  const asking   = l.projected_value;
+  const offerList = offers.map(o => `
+    <div class="offer-item">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--white)">${esc(o.buyer_name||'Unknown buyer')}</div>
+        <div style="font-size:13px;color:var(--text-dim)">${fmtNum(o.offer_price)} ${pctDiff(o.offer_price,asking)}</div>
+        ${o.notes?`<div style="font-size:11px;color:var(--text-muted)">${esc(o.notes)}</div>`:''}
+        <div style="font-size:10px;color:var(--text-muted)">${fmtDate(o.created_at)}</div>
+      </div>
+      ${!viewOnly ? `<button class="btn-icon" onclick="deleteOffer(${o.id})">✕</button>` : ''}
+    </div>`).join('');
+  const viewerOpts = viewings.length
+    ? viewings.map(v=>`<option value="${v.id}">${esc(v.buyer_name||'Unknown')} — ${fmtDate(v.viewing_date,true)}</option>`).join('')
+    : '<option value="">No viewers on record</option>';
+  return `
+    <div style="margin-bottom:16px">
+      <div class="divider">Offers Received (${offers.length})</div>
+      ${offerList||'<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">No offers recorded yet.</p>'}
+      ${!viewOnly ? `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:8px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px">Record Offer</div>
+        <div class="form-row" style="margin-bottom:10px">
+          <div class="form-group">
+            <label>Select Buyer (from viewers)</label>
+            <select id="o_viewer_id"><option value="">Select…</option>${viewerOpts}</select>
+          </div>
+          <div class="form-group">
+            <label>Offer Price ($) *</label>
+            <input id="o_price" type="number" placeholder="e.g. 850000" oninput="updatePctDisplay('o_price','o_pct')"/>
+            <span id="o_pct" style="font-size:11px;margin-top:3px;display:block"></span>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label>Notes</label>
+          <input id="o_notes" type="text" placeholder="Any notes on this offer…"/>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="addOffer()">+ Record Offer</button>
+      </div>` : ''}
+    </div>`;
+}
+
+function buildCounterOfferContent(l, viewOnly) {
+  const cos    = l.counter_offers || [];
+  const offers = l.offers         || [];
+  const asking = l.projected_value;
+  const coList = cos.map(c => `
+    <div class="offer-item">
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600;color:var(--white)">${esc(c.buyer_name||'Unknown')}</div>
+        <div style="font-size:13px;color:var(--text-dim)">Counter: ${fmtNum(c.counter_price)} ${pctDiff(c.counter_price,asking)}</div>
+        ${c.notes?`<div style="font-size:11px;color:var(--text-muted)">${esc(c.notes)}</div>`:''}
+        <div style="font-size:10px;color:var(--text-muted)">${fmtDate(c.created_at)}</div>
+      </div>
+      ${!viewOnly ? `<button class="btn-icon" onclick="deleteCounterOffer(${c.id})">✕</button>` : ''}
+    </div>`).join('');
+  const offerOpts = offers.length
+    ? offers.map(o=>`<option value="${o.id}">${esc(o.buyer_name||'Unknown')} — ${fmtNum(o.offer_price)}</option>`).join('')
+    : '<option value="">No offers on record</option>';
+  return `
+    <div style="margin-bottom:16px">
+      <div class="divider">Counter Offers (${cos.length})</div>
+      ${coList||'<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">No counter offers recorded yet.</p>'}
+      ${!viewOnly ? `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:8px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px">Record Counter Offer</div>
+        <div class="form-row" style="margin-bottom:10px">
+          <div class="form-group">
+            <label>Select Offer to Counter</label>
+            <select id="co_offer_id"><option value="">Select offer…</option>${offerOpts}</select>
+          </div>
+          <div class="form-group">
+            <label>Counter Offer Price ($) *</label>
+            <input id="co_price" type="number" placeholder="e.g. 870000" oninput="updatePctDisplay('co_price','co_pct')"/>
+            <span id="co_pct" style="font-size:11px;margin-top:3px;display:block"></span>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:10px">
+          <label>Notes</label>
+          <input id="co_notes" type="text" placeholder="Notes on this counter offer…"/>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="addCounterOffer()">+ Record Counter Offer</button>
+      </div>` : ''}
+    </div>`;
+}
+
+function buildAcceptedContent(l, viewOnly) {
+  const offers   = l.offers || [];
+  const asking   = l.projected_value;
+  const accepted = offers.find(o => o.id === l.accepted_offer_id);
+  const acceptedHtml = accepted ? `
+    <div class="offer-item accepted-highlight" style="margin-bottom:10px">
+      <div style="flex:1">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--red-bright);margin-bottom:4px">Accepted Offer</div>
+        <div style="font-size:13px;font-weight:600;color:var(--white)">${esc(accepted.buyer_name||'Unknown')}</div>
+        <div style="font-size:12px;color:var(--text-dim)">Original offer: ${fmtNum(accepted.offer_price)} ${pctDiff(accepted.offer_price,asking)}</div>
+        ${l.final_accepted_price?`<div style="font-size:13px;color:var(--white);margin-top:4px">Final price: <strong>${fmtNum(l.final_accepted_price)}</strong> ${pctDiff(l.final_accepted_price,asking)}</div>`:''}
+      </div>
+    </div>` : '';
+  const offerOpts = offers.length
+    ? offers.map(o=>`<option value="${o.id}"${o.id===l.accepted_offer_id?' selected':''}>${esc(o.buyer_name||'Unknown')} — ${fmtNum(o.offer_price)}</option>`).join('')
+    : '<option value="">No offers on record</option>';
+  return `
+    <div style="margin-bottom:16px">
+      <div class="divider">Accepted Offer</div>
+      ${acceptedHtml}
+      ${!viewOnly ? `<div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:8px">
+        <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);margin-bottom:10px">${accepted?'Update':'Set'} Accepted Offer</div>
+        <div class="form-row" style="margin-bottom:10px">
+          <div class="form-group">
+            <label>Select Accepted Offer</label>
+            <select id="acc_offer_id"><option value="">Select offer…</option>${offerOpts}</select>
+          </div>
+          <div class="form-group">
+            <label>Final Accepted Price ($) *</label>
+            <input id="acc_price" type="number" placeholder="e.g. 860000" value="${l.final_accepted_price||''}" oninput="updatePctDisplay('acc_price','acc_pct')"/>
+            <span id="acc_pct" style="font-size:11px;margin-top:3px;display:block">${l.final_accepted_price?pctDiff(l.final_accepted_price,asking):''}</span>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:10px">
+          <div class="form-group">
+            <label>Net Commission % (your actual cut)</label>
+            <input id="acc_net_pct" type="number" step="0.1" min="0" max="100" placeholder="e.g. 70" value="${l.net_commission_pct||''}"/>
+          </div>
+          <div class="form-group" style="justify-content:flex-end;padding-top:18px">
+            <span style="font-size:11px;color:var(--text-muted)">% of gross commission you keep after agency split</span>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="setAcceptedOffer()">✓ Confirm Accepted Offer</button>
+      </div>` : ''}
+    </div>`;
+}
+
+// ── actions ────────────────────────────────────────────────────────────────
+async function setViewingProb(viewingId, prob) {
+  if (!activeLead) return;
+  await api('PUT', `/api/leads/${activeLead.id}/viewings/${viewingId}/probability`, { win_probability: prob });
+  await loadLeads();
+}
+function startEditNotes(viewingId, current) {
+  document.getElementById('vnotes_display_' + viewingId).style.display = 'none';
+  const form = document.getElementById('vnotes_form_' + viewingId);
+  form.style.display = 'flex';
+  form.style.gap = '6px';
+  form.style.alignItems = 'center';
+  document.getElementById('vnotes_input_' + viewingId).focus();
+}
+function cancelEditNotes(viewingId) {
+  document.getElementById('vnotes_form_' + viewingId).style.display = 'none';
+  document.getElementById('vnotes_display_' + viewingId).style.display = '';
+}
+async function saveNotes(viewingId) {
+  if (!activeLead) return;
+  const notes = document.getElementById('vnotes_input_' + viewingId).value.trim();
+  await api('PUT', `/api/leads/${activeLead.id}/viewings/${viewingId}`, { notes: notes || null });
+  await loadLeads();
+}
+
+async function moveTo(stage) {
+  if (!activeLead) return;
+  if (stage === 'accepted') {
+    if (!(activeLead.offers || []).length) {
+      alert('An offer must be recorded before marking this deal as Offer Accepted.');
+      return;
+    }
+  }
+  if (stage !== 'lost') {
+    const curIdx = PROGRESS_STAGES.indexOf(activeLead.stage);
+    const newIdx = PROGRESS_STAGES.indexOf(stage);
+    if (curIdx >= 0 && newIdx >= 0 && newIdx < curIdx) {
+      const ok = confirm(`⚠️ Stage regression warning\n\nThis deal is at "${stageLabel(activeLead.stage)}". Moving back to "${stageLabel(stage)}" reverses progress.\n\nAre you sure?`);
+      if (!ok) return;
+    }
+  }
+  await api('PUT', `/api/leads/${activeLead.id}/stage`, { stage, remark: '' });
+  await loadLeads();
+}
+
+async function addRemark() {
+  if (!activeLead) return;
+  const input = document.getElementById('remark_input');
+  const remark = input.value.trim();
+  if (!remark) return;
+  await api('POST', `/api/leads/${activeLead.id}/remarks`, { stage: activeLead.stage, remark });
+  input.value = '';
+  await loadLeads();
+}
+
+async function addViewing() {
+  if (!activeLead) return;
+  const viewing_date = document.getElementById('v_date').value;
+  if (!viewing_date) { alert('Please select a viewing date.'); return; }
+  await api('POST', `/api/leads/${activeLead.id}/viewings`, {
+    buyer_name:        document.getElementById('v_buyer').value.trim(),
+    viewing_date,
+    counterpart_name:  document.getElementById('v_cp_name').value.trim(),
+    counterpart_number:document.getElementById('v_cp_num').value.trim(),
+    notes:             document.getElementById('v_notes').value.trim(),
+  });
+  await loadLeads();
+}
+async function deleteViewing(id) {
+  if (!activeLead || !confirm('Remove this viewing record?')) return;
+  await api('DELETE', `/api/leads/${activeLead.id}/viewings/${id}`);
+  await loadLeads();
+}
+
+async function addOffer() {
+  if (!activeLead) return;
+  const sel   = document.getElementById('o_viewer_id');
+  const price = parseFloat(document.getElementById('o_price').value);
+  if (!price) { alert('Please enter an offer price.'); return; }
+  const viewing_id = sel.value ? parseInt(sel.value) : null;
+  const buyer_name = viewing_id
+    ? sel.options[sel.selectedIndex].text.split(' — ')[0]
+    : 'Unknown buyer';
+  await api('POST', `/api/leads/${activeLead.id}/offers`, {
+    viewing_id, buyer_name, offer_price: price,
+    notes: document.getElementById('o_notes').value.trim(),
+  });
+  await loadLeads();
+}
+async function deleteOffer(id) {
+  if (!activeLead || !confirm('Remove this offer?')) return;
+  await api('DELETE', `/api/leads/${activeLead.id}/offers/${id}`);
+  await loadLeads();
+}
+
+async function addCounterOffer() {
+  if (!activeLead) return;
+  const offer_id = parseInt(document.getElementById('co_offer_id').value);
+  const price    = parseFloat(document.getElementById('co_price').value);
+  if (!offer_id) { alert('Please select the offer to counter.'); return; }
+  if (!price)    { alert('Please enter a counter offer price.'); return; }
+  await api('POST', `/api/leads/${activeLead.id}/counter_offers`, {
+    offer_id, counter_price: price,
+    notes: document.getElementById('co_notes').value.trim(),
+  });
+  await loadLeads();
+}
+async function deleteCounterOffer(id) {
+  if (!activeLead || !confirm('Remove this counter offer?')) return;
+  await api('DELETE', `/api/leads/${activeLead.id}/counter_offers/${id}`);
+  await loadLeads();
+}
+
+async function setAcceptedOffer() {
+  if (!activeLead) return;
+  const offer_id        = parseInt(document.getElementById('acc_offer_id').value);
+  const final_price     = parseFloat(document.getElementById('acc_price').value);
+  const net_commission_pct = parseFloat(document.getElementById('acc_net_pct').value) || null;
+  if (!offer_id)    { alert('Please select the accepted offer.'); return; }
+  if (!final_price) { alert('Please enter the final accepted price.'); return; }
+  await api('PUT', `/api/leads/${activeLead.id}/accepted_offer`, { offer_id, final_price, net_commission_pct });
+  await loadLeads();
+}
+
+// ── modal ──────────────────────────────────────────────────────────────────
+function openNewLeadModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'New Lead';
+  ['f_name','f_property_address','f_projected_value','f_commission_pct','f_linked_lead_id'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f_property_type').value = '';
+  document.getElementById('f_stage').value = 'prospecting';
+  document.getElementById('leadModal').classList.add('open');
+}
+function openEditModal() {
+  if (!activeLead) return;
+  const l = activeLead; editingId = l.id;
+  document.getElementById('modalTitle').textContent = 'Edit Lead';
+  document.getElementById('f_name').value             = l.client_name;
+  document.getElementById('f_property_address').value = l.property_address || '';
+  document.getElementById('f_property_type').value   = l.property_type;
+  document.getElementById('f_projected_value').value = l.projected_value || '';
+  document.getElementById('f_commission_pct').value  = l.commission_pct  || '';
+  document.getElementById('f_stage').value           = l.stage;
+  document.getElementById('f_linked_lead_id').value  = l.linked_lead_id  || '';
+  document.getElementById('leadModal').classList.add('open');
+}
+function closeLeadModal() { document.getElementById('leadModal').classList.remove('open'); }
+
+async function saveLead() {
+  const name = document.getElementById('f_name').value.trim();
+  const property_type = document.getElementById('f_property_type').value;
+  if (!name || !property_type) { alert('Please fill in client name and property type.'); return; }
+  const body = {
+    client_name: name, property_type, transaction_type: 'sell',
+    property_address: document.getElementById('f_property_address').value.trim() || null,
+    projected_value:  parseFloat(document.getElementById('f_projected_value').value) || null,
+    commission_pct:   parseFloat(document.getElementById('f_commission_pct').value)  || null,
+    linked_lead_id:   parseInt(document.getElementById('f_linked_lead_id').value)    || null,
+    stage: document.getElementById('f_stage').value,
+  };
+  if (editingId) {
+    await api('PUT', `/api/leads/${editingId}`, body);
+  } else {
+    const r = await api('POST', '/api/leads', body);
+    activeLead = { id: r.id };
+  }
+  closeLeadModal();
+  await loadLeads();
+  if (activeLead?.id) openPanel(activeLead.id);
+}
+async function deleteLead() {
+  if (!activeLead || !confirm(`Delete lead for ${activeLead.client_name}? This cannot be undone.`)) return;
+  await api('DELETE', `/api/leads/${activeLead.id}`);
+  closePanel(); await loadLeads();
+}
+
+// ── tabs ───────────────────────────────────────────────────────────────────
+let activeTab = 'summary';
+let commChartInst = null;
+let commMode = 'net'; // 'gross' | 'net'
+
+function setCommMode(mode) {
+  commMode = mode;
+  document.getElementById('btnGross').className = 'btn btn-sm ' + (mode === 'gross' ? 'btn-primary' : 'btn-ghost');
+  document.getElementById('btnNet').className   = 'btn btn-sm ' + (mode === 'net'   ? 'btn-primary' : 'btn-ghost');
+  const t = document.getElementById('commChartTitle');
+  if (t) t.textContent = `Expected ${mode === 'net' ? 'Net' : 'Gross'} Payout — Next 6 Months`;
+  loadCommissionView();
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['summary','leads','commission'][i] === tab);
+  });
+  document.getElementById('summary-view').style.display    = tab === 'summary'    ? '' : 'none';
+  document.getElementById('leads-view').style.display      = tab === 'leads'      ? '' : 'none';
+  document.getElementById('commission-view').style.display = tab === 'commission' ? '' : 'none';
+  if (tab === 'commission') loadCommissionView();
+  if (tab === 'summary') loadSummaryView();
+  if (tab === 'leads') renderLeads();
+}
+
+// ── commission ─────────────────────────────────────────────────────────────
+async function loadCommissionView() {
+  const data = await api('GET', '/api/commission');
+  renderCommChart(data);
+}
+
+function fmtMonthKey(key) {
+  const [y, m] = key.split('-');
+  return new Date(y, m-1).toLocaleDateString('en-SG', { month: 'short', year: '2-digit' });
+}
+
+function renderCommChart(data) {
+  const labels = Object.keys(data.months).map(fmtMonthKey);
+  const today = new Date();
+  const currentKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+
+  const values = Object.values(data.months).map(m =>
+    Math.round(commMode === 'net' ? m.net_total : m.gross_total)
+  );
+
+  const colors = Object.keys(data.months).map(k =>
+    k === currentKey ? '#34d399' : '#0d9668'
+  );
+  const borders = Object.keys(data.months).map(k =>
+    k === currentKey ? '#6ee7b7' : '#34d399'
+  );
+
+  const barTopLabels = {
+    id: 'barTopLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      ctx.save();
+      chart.getDatasetMeta(0).data.forEach((bar, i) => {
+        const val = values[i];
+        if (!val) return;
+        const label = val >= 1e6 ? '$'+(val/1e6).toFixed(2)+'M' : val >= 1e3 ? '$'+(val/1e3).toFixed(0)+'K' : '$'+val;
+        ctx.fillStyle = '#e0e0e0';
+        ctx.font = '600 11px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(label, bar.x, bar.y - 7);
+      });
+      ctx.restore();
+    }
+  };
+
+  if (commChartInst) commChartInst.destroy();
+  const ctx = document.getElementById('commChart').getContext('2d');
+  commChartInst = new Chart(ctx, {
+    type: 'bar',
+    plugins: [barTopLabels],
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors,
+        borderColor: borders,
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const monthKey = Object.keys(data.months)[elements[0].index];
+        if (data.months[monthKey].deals.length) goToCommMonth(monthKey);
+      },
+      onHover: (evt, elements) => {
+        evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0].label,
+            label: item => '  $' + Number(item.raw).toLocaleString(),
+          },
+          backgroundColor: '#1a1a1a',
+          titleColor: '#f0f0f0',
+          bodyColor: '#aaa',
+          borderColor: '#3a3a3a',
+          borderWidth: 1,
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            color: '#666',
+            callback: v => {
+              const k = v / 1000;
+              if (k === 0) return '$0';
+              if (k % 2 !== 0) return null; // even thousands only
+              return '$' + k.toFixed(0) + 'K';
+            },
+          },
+          grid: { color: '#1f1f1f' },
+          border: { color: '#2a2a2a' },
+        },
+        x: {
+          ticks: { color: '#888' },
+          grid: { display: false },
+          border: { color: '#2a2a2a' },
+        }
+      }
+    }
+  });
+}
+
+
+loadLeads().then(() => loadSummaryView());
+</script>
+</body>
+</html>
