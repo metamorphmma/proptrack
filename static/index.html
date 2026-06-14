@@ -552,7 +552,7 @@ const db   = getFirestore(app);
 const auth = getAuth(app);
 
 // Silently sign in anonymously — required for Firestore rules (request.auth != null)
-await signInAnonymously(auth);
+try { await signInAnonymously(auth); } catch(e) { console.warn('Anonymous auth failed:', e.message); }
 
 // ── Auth ───────────────────────────────────────────────────────────────────
 let currentUser = null; // { id, username, role }
