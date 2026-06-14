@@ -410,7 +410,7 @@
       <div class="form-row">
         <div class="form-group">
           <label>Linked Lead (ID)</label>
-          <input id="f_linked_lead_id" type="number" placeholder="Lead ID (optional)"/>
+          <input id="f_linked_lead_id" type="text" placeholder="Lead ID (optional)"/>
         </div>
       </div>
     </div>
@@ -421,17 +421,31 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, collection, doc, getDocs, addDoc, updateDoc, deleteDoc, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDgeFJcNSSTFix_FMfV0u2LbfkLeSG5iqQ",
+  authDomain: "proptrack-3a20d.firebaseapp.com",
+  projectId: "proptrack-3a20d",
+  storageBucket: "proptrack-3a20d.firebasestorage.app",
+  messagingSenderId: "398268146383",
+  appId: "1:398268146383:web:7d4e8ec42f67aa21c88dba"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
 // ── constants ──────────────────────────────────────────────────────────────
 const STAGES = [
-  { key: 'prospecting', label: 'Prospecting', icon: '🔍' },
-  { key: 'exclusive',     label: 'Appointed',     icon: '🤝' },
-  { key: 'viewings',      label: 'Viewed',        icon: '👁' },
-  { key: 'offer',         label: 'Offer Made',    icon: '📝' },
-  { key: 'counter_offer', label: 'Counter Offer', icon: '🔄' },
-  { key: 'accepted',      label: 'Offer Accepted',icon: '✅' },
-  { key: 'completed',     label: 'Completed',     icon: '🏆' },
-  { key: 'lost',          label: 'Lost',          icon: '✗' },
+  { key: 'prospecting',  label: 'Prospecting',   icon: '🔍' },
+  { key: 'exclusive',    label: 'Appointed',      icon: '🤝' },
+  { key: 'viewings',     label: 'Viewed',         icon: '👁' },
+  { key: 'offer',        label: 'Offer Made',     icon: '📝' },
+  { key: 'counter_offer',label: 'Counter Offer',  icon: '🔄' },
+  { key: 'accepted',     label: 'Offer Accepted', icon: '✅' },
+  { key: 'completed',    label: 'Completed',      icon: '🏆' },
+  { key: 'lost',         label: 'Lost',           icon: '✗' },
 ];
 const STAGE_IDX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
 const PROGRESS_STAGES = ['prospecting','exclusive','viewings','offer','counter_offer','accepted','completed'];
@@ -439,9 +453,9 @@ const PROGRESS_STAGES = ['prospecting','exclusive','viewings','offer','counter_o
 let leads = [];
 let activeLead = null;
 let editingId = null;
-let panelViewStage = null; // null = current stage; string = viewing a past stage
-let leadsFilter = null; // null | 'active' | 'highPotential' | 'commMonth'
-let commMonthFilter = null; // e.g. '2026-10'
+let panelViewStage = null;
+let leadsFilter = null;
+let commMonthFilter = null;
 
 function addMonthsJS(date, n) {
   const d = new Date(date);
@@ -453,18 +467,10 @@ function payoutMonthKey(acceptedAt) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
 }
 
-async function api(method, path, body) {
-  const res = await fetch(path, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
+// ── Firestore data loading ─────────────────────────────────────────────────
 async function loadLeads() {
-  leads = await api('GET', '/api/leads');
+  const snap = await getDocs(query(collection(db, 'leads'), orderBy('created_at', 'desc')));
+  leads = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   renderLeads();
   if (activeTab === 'summary') loadSummaryView();
   if (activeLead) {
@@ -473,19 +479,37 @@ async function loadLeads() {
   }
 }
 
+function computeCommissionData() {
+  const today = new Date();
+  const months = {};
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(today.getFullYear(), today.getMonth() + i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    months[key] = { gross_total: 0, net_total: 0, deals: [] };
+  }
+  leads.forEach(l => {
+    if (!l.accepted_at) return;
+    const key = payoutMonthKey(l.accepted_at);
+    if (!months[key]) return;
+    const price = l.final_accepted_price || l.projected_value || 0;
+    const gross = price * (l.commission_pct || 0) / 100;
+    const net   = gross * (l.net_commission_pct || 100) / 100;
+    months[key].gross_total += gross;
+    months[key].net_total   += net;
+    months[key].deals.push(l);
+  });
+  return { months };
+}
+
 async function loadSummaryView() {
-  const commData = await api('GET', '/api/commission');
+  const commData = computeCommissionData();
   const active = leads.filter(l => l.stage !== 'lost' && l.stage !== 'completed');
   const highPotential = leads.filter(l => l.stage !== 'lost' && (l.viewings || []).some(v => v.win_probability === 'high'));
-  const highVal = highPotential.reduce((s, l) => s + (l.projected_value || 0), 0);
+  const highVal  = highPotential.reduce((s, l) => s + (l.projected_value || 0), 0);
   const highComm = highPotential.reduce((s, l) => s + (l.projected_value || 0) * (l.commission_pct || 0) / 100, 0);
-
-  // Net comm next 3 months: sum first 3 months from commission data
-  const monthEntries = Object.entries(commData.months);
-  const net3m = monthEntries.slice(0, 3).reduce((s, [, m]) => s + (m.net_total || 0), 0);
-
+  const net3m    = Object.values(commData.months).slice(0, 3).reduce((s, m) => s + m.net_total, 0);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const newIn30 = leads.filter(l => new Date(l.created_at) >= thirtyDaysAgo).length;
+  const newIn30  = leads.filter(l => new Date(l.created_at) >= thirtyDaysAgo).length;
 
   function ring(val, healthy, label, clickFn) {
     const accent = healthy ? 'green' : 'amber';
@@ -499,12 +523,12 @@ async function loadSummaryView() {
   }
 
   document.getElementById('summaryCircles').innerHTML =
-    ring(newIn30,              newIn30 >= 5,             'Leads Acquired<br>Last 30 Days',         "goToLeads('recent')")                          +
-    ring(active.length,        active.length > 0,        'Active Leads',                           "goToLeads('active')")       +
-    ring(highPotential.length, highPotential.length > 0, 'Active Leads<br>(High Potential)',         "goToLeads('highPotential')") +
-    ring('$'+fmtM(highVal),    highVal > 0,              'Pipeline Value<br>(High Potential)',      '')                          +
-    ring('$'+fmtM(highComm),   highComm > 0,             'Est. Gross Comm<br>(High Potential)',     '')                          +
-    ring('$'+fmtM(net3m),      net3m > 0,                'Est. Net Comm<br>Next 3 Months',          '');
+    ring(newIn30,              newIn30 >= 5,             'Leads Acquired<br>Last 30 Days',     "goToLeads('recent')")        +
+    ring(active.length,        active.length > 0,        'Active Leads',                       "goToLeads('active')")        +
+    ring(highPotential.length, highPotential.length > 0, 'Active Leads<br>(High Potential)',   "goToLeads('highPotential')") +
+    ring('$'+fmtM(highVal),    highVal > 0,              'Pipeline Value<br>(High Potential)',  '')                           +
+    ring('$'+fmtM(highComm),   highComm > 0,             'Est. Gross Comm<br>(High Potential)', '')                          +
+    ring('$'+fmtM(net3m),      net3m > 0,                'Est. Net Comm<br>Next 3 Months',      '');
 }
 
 function fmtM(n) {
@@ -615,7 +639,7 @@ function leadCard(l) {
   const pct = isLost ? 100 : progressPct(l.stage);
   const viewCount  = (l.viewings || []).length;
   const offerCount = (l.offers   || []).length;
-  return `<div class="lead-card${activeLead?.id === l.id ? ' active' : ''}" onclick="openPanel(${l.id})">
+  return `<div class="lead-card${activeLead?.id === l.id ? ' active' : ''}" onclick="openPanel('${l.id}')">
     <div class="lead-card-top">
       <div class="lead-card-header">
         <div class="client-name">${esc(l.client_name)}</div>
@@ -666,7 +690,7 @@ function renderPanel() {
   const commVal = l.projected_value && l.commission_pct
     ? `$${Number(l.projected_value * l.commission_pct / 100).toLocaleString()}` : '—';
   const linkedHtml = l.linked_lead_id
-    ? `<a href="#" onclick="openPanel(${l.linked_lead_id});return false;" style="color:var(--red-bright)">Lead #${l.linked_lead_id}</a>` : '—';
+    ? `<a href="#" onclick="openPanel('${l.linked_lead_id}');return false;" style="color:var(--red-bright)">${l.linked_lead_id}</a>` : '—';
 
   const si = PROGRESS_STAGES.indexOf(l.stage);
   const isLost = l.stage === 'lost';
@@ -793,24 +817,24 @@ function buildViewingsContent(l, viewOnly) {
             ? (v.notes ? `<div class="vnotes">${esc(v.notes)}</div>` : '')
             : `<div class="vnotes-edit" id="vnotes_display_${v.id}">
                 ${v.notes ? `<span>${esc(v.notes)}</span>` : '<span style="color:var(--text-muted);font-style:italic">Add notes…</span>'}
-                <button class="btn-icon" style="font-size:11px;padding:1px 5px;margin-left:4px" onclick="startEditNotes(${v.id},${JSON.stringify(v.notes||'')})">✎</button>
+                <button class="btn-icon" style="font-size:11px;padding:1px 5px;margin-left:4px" onclick="startEditNotes('${v.id}',${JSON.stringify(v.notes||'')})">✎</button>
                </div>
                <div class="vnotes-edit" id="vnotes_form_${v.id}" style="display:none;margin-top:4px">
-                 <input id="vnotes_input_${v.id}" type="text" value="${esc(v.notes||'')}" style="flex:1;font-size:12px;padding:4px 7px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--white)" onkeydown="if(event.key==='Enter')saveNotes(${v.id});if(event.key==='Escape')cancelEditNotes(${v.id})"/>
-                 <button class="btn btn-primary btn-sm" style="padding:3px 10px" onclick="saveNotes(${v.id})">Save</button>
-                 <button class="btn btn-ghost btn-sm" style="padding:3px 10px" onclick="cancelEditNotes(${v.id})">✕</button>
+                 <input id="vnotes_input_${v.id}" type="text" value="${esc(v.notes||'')}" style="flex:1;font-size:12px;padding:4px 7px;background:var(--bg);border:1px solid var(--border);border-radius:5px;color:var(--white)" onkeydown="if(event.key==='Enter')saveNotes('${v.id}');if(event.key==='Escape')cancelEditNotes('${v.id}')"/>
+                 <button class="btn btn-primary btn-sm" style="padding:3px 10px" onclick="saveNotes('${v.id}')">Save</button>
+                 <button class="btn btn-ghost btn-sm" style="padding:3px 10px" onclick="cancelEditNotes('${v.id}')">✕</button>
                </div>`
           }
         </div>
-        ${!viewOnly ? `<button class="btn-icon" onclick="deleteViewing(${v.id})">✕</button>` : ''}
+        ${!viewOnly ? `<button class="btn-icon" onclick="deleteViewing('${v.id}')">✕</button>` : ''}
       </div>
       <div style="display:flex;align-items:center;gap:6px">
         <span style="font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted)">Offer probability</span>
         ${viewOnly
           ? (p ? `<span class="prob-btn ${p} selected" style="pointer-events:none">${p.charAt(0).toUpperCase()+p.slice(1)}</span>` : '<span style="font-size:11px;color:var(--text-muted)">Not set</span>')
-          : `<button class="prob-btn high${p==='high'?' selected':p?' dimmed':''}" onclick="setViewingProb(${v.id},'high')">High</button>
-             <button class="prob-btn mid${p==='mid'?' selected':p?' dimmed':''}"  onclick="setViewingProb(${v.id},'mid')">Mid</button>
-             <button class="prob-btn low${p==='low'?' selected':p?' dimmed':''}"  onclick="setViewingProb(${v.id},'low')">Low</button>`
+          : `<button class="prob-btn high${p==='high'?' selected':p?' dimmed':''}" onclick="setViewingProb('${v.id}','high')">High</button>
+             <button class="prob-btn mid${p==='mid'?' selected':p?' dimmed':''}"  onclick="setViewingProb('${v.id}','mid')">Mid</button>
+             <button class="prob-btn low${p==='low'?' selected':p?' dimmed':''}"  onclick="setViewingProb('${v.id}','low')">Low</button>`
         }
       </div>
     </div>`;
@@ -846,7 +870,7 @@ function buildOfferContent(l, viewOnly) {
         ${o.notes?`<div style="font-size:11px;color:var(--text-muted)">${esc(o.notes)}</div>`:''}
         <div style="font-size:10px;color:var(--text-muted)">${fmtDate(o.created_at)}</div>
       </div>
-      ${!viewOnly ? `<button class="btn-icon" onclick="deleteOffer(${o.id})">✕</button>` : ''}
+      ${!viewOnly ? `<button class="btn-icon" onclick="deleteOffer('${o.id}')">✕</button>` : ''}
     </div>`).join('');
   const viewerOpts = viewings.length
     ? viewings.map(v=>`<option value="${v.id}">${esc(v.buyer_name||'Unknown')} — ${fmtDate(v.viewing_date,true)}</option>`).join('')
@@ -890,7 +914,7 @@ function buildCounterOfferContent(l, viewOnly) {
         ${c.notes?`<div style="font-size:11px;color:var(--text-muted)">${esc(c.notes)}</div>`:''}
         <div style="font-size:10px;color:var(--text-muted)">${fmtDate(c.created_at)}</div>
       </div>
-      ${!viewOnly ? `<button class="btn-icon" onclick="deleteCounterOffer(${c.id})">✕</button>` : ''}
+      ${!viewOnly ? `<button class="btn-icon" onclick="deleteCounterOffer('${c.id}')">✕</button>` : ''}
     </div>`).join('');
   const offerOpts = offers.length
     ? offers.map(o=>`<option value="${o.id}">${esc(o.buyer_name||'Unknown')} — ${fmtNum(o.offer_price)}</option>`).join('')
@@ -972,7 +996,10 @@ function buildAcceptedContent(l, viewOnly) {
 // ── actions ────────────────────────────────────────────────────────────────
 async function setViewingProb(viewingId, prob) {
   if (!activeLead) return;
-  await api('PUT', `/api/leads/${activeLead.id}/viewings/${viewingId}/probability`, { win_probability: prob });
+  const viewings = (activeLead.viewings || []).map(v =>
+    v.id === viewingId ? { ...v, win_probability: prob } : v
+  );
+  await updateDoc(doc(db, 'leads', activeLead.id), { viewings });
   await loadLeads();
 }
 function startEditNotes(viewingId, current) {
@@ -990,7 +1017,10 @@ function cancelEditNotes(viewingId) {
 async function saveNotes(viewingId) {
   if (!activeLead) return;
   const notes = document.getElementById('vnotes_input_' + viewingId).value.trim();
-  await api('PUT', `/api/leads/${activeLead.id}/viewings/${viewingId}`, { notes: notes || null });
+  const viewings = (activeLead.viewings || []).map(v =>
+    v.id === viewingId ? { ...v, notes: notes || null } : v
+  );
+  await updateDoc(doc(db, 'leads', activeLead.id), { viewings });
   await loadLeads();
 }
 
@@ -1010,7 +1040,9 @@ async function moveTo(stage) {
       if (!ok) return;
     }
   }
-  await api('PUT', `/api/leads/${activeLead.id}/stage`, { stage, remark: '' });
+  const updates = { stage };
+  if (stage === 'accepted') updates.accepted_at = new Date().toISOString();
+  await updateDoc(doc(db, 'leads', activeLead.id), updates);
   await loadLeads();
 }
 
@@ -1019,7 +1051,13 @@ async function addRemark() {
   const input = document.getElementById('remark_input');
   const remark = input.value.trim();
   if (!remark) return;
-  await api('POST', `/api/leads/${activeLead.id}/remarks`, { stage: activeLead.stage, remark });
+  const remarks = [...(activeLead.remarks || []), {
+    id: crypto.randomUUID(),
+    stage: activeLead.stage,
+    remark,
+    created_at: new Date().toISOString(),
+  }];
+  await updateDoc(doc(db, 'leads', activeLead.id), { remarks });
   input.value = '';
   await loadLeads();
 }
@@ -1028,18 +1066,23 @@ async function addViewing() {
   if (!activeLead) return;
   const viewing_date = document.getElementById('v_date').value;
   if (!viewing_date) { alert('Please select a viewing date.'); return; }
-  await api('POST', `/api/leads/${activeLead.id}/viewings`, {
-    buyer_name:        document.getElementById('v_buyer').value.trim(),
+  const viewings = [...(activeLead.viewings || []), {
+    id: crypto.randomUUID(),
+    buyer_name:         document.getElementById('v_buyer').value.trim(),
     viewing_date,
-    counterpart_name:  document.getElementById('v_cp_name').value.trim(),
-    counterpart_number:document.getElementById('v_cp_num').value.trim(),
-    notes:             document.getElementById('v_notes').value.trim(),
-  });
+    counterpart_name:   document.getElementById('v_cp_name').value.trim(),
+    counterpart_number: document.getElementById('v_cp_num').value.trim(),
+    notes:              document.getElementById('v_notes').value.trim() || null,
+    win_probability:    null,
+    created_at:         new Date().toISOString(),
+  }];
+  await updateDoc(doc(db, 'leads', activeLead.id), { viewings });
   await loadLeads();
 }
 async function deleteViewing(id) {
   if (!activeLead || !confirm('Remove this viewing record?')) return;
-  await api('DELETE', `/api/leads/${activeLead.id}/viewings/${id}`);
+  const viewings = (activeLead.viewings || []).filter(v => v.id !== id);
+  await updateDoc(doc(db, 'leads', activeLead.id), { viewings });
   await loadLeads();
 }
 
@@ -1048,48 +1091,62 @@ async function addOffer() {
   const sel   = document.getElementById('o_viewer_id');
   const price = parseFloat(document.getElementById('o_price').value);
   if (!price) { alert('Please enter an offer price.'); return; }
-  const viewing_id = sel.value ? parseInt(sel.value) : null;
+  const viewing_id = sel.value || null;
   const buyer_name = viewing_id
     ? sel.options[sel.selectedIndex].text.split(' — ')[0]
     : 'Unknown buyer';
-  await api('POST', `/api/leads/${activeLead.id}/offers`, {
+  const offers = [...(activeLead.offers || []), {
+    id: crypto.randomUUID(),
     viewing_id, buyer_name, offer_price: price,
-    notes: document.getElementById('o_notes').value.trim(),
-  });
+    notes: document.getElementById('o_notes').value.trim() || null,
+    created_at: new Date().toISOString(),
+  }];
+  await updateDoc(doc(db, 'leads', activeLead.id), { offers });
   await loadLeads();
 }
 async function deleteOffer(id) {
   if (!activeLead || !confirm('Remove this offer?')) return;
-  await api('DELETE', `/api/leads/${activeLead.id}/offers/${id}`);
+  const offers = (activeLead.offers || []).filter(o => o.id !== id);
+  await updateDoc(doc(db, 'leads', activeLead.id), { offers });
   await loadLeads();
 }
 
 async function addCounterOffer() {
   if (!activeLead) return;
-  const offer_id = parseInt(document.getElementById('co_offer_id').value);
+  const offer_id = document.getElementById('co_offer_id').value;
   const price    = parseFloat(document.getElementById('co_price').value);
   if (!offer_id) { alert('Please select the offer to counter.'); return; }
   if (!price)    { alert('Please enter a counter offer price.'); return; }
-  await api('POST', `/api/leads/${activeLead.id}/counter_offers`, {
-    offer_id, counter_price: price,
-    notes: document.getElementById('co_notes').value.trim(),
-  });
+  const offer = (activeLead.offers || []).find(o => o.id === offer_id);
+  const counter_offers = [...(activeLead.counter_offers || []), {
+    id: crypto.randomUUID(),
+    offer_id, buyer_name: offer?.buyer_name || 'Unknown',
+    counter_price: price,
+    notes: document.getElementById('co_notes').value.trim() || null,
+    created_at: new Date().toISOString(),
+  }];
+  await updateDoc(doc(db, 'leads', activeLead.id), { counter_offers });
   await loadLeads();
 }
 async function deleteCounterOffer(id) {
   if (!activeLead || !confirm('Remove this counter offer?')) return;
-  await api('DELETE', `/api/leads/${activeLead.id}/counter_offers/${id}`);
+  const counter_offers = (activeLead.counter_offers || []).filter(c => c.id !== id);
+  await updateDoc(doc(db, 'leads', activeLead.id), { counter_offers });
   await loadLeads();
 }
 
 async function setAcceptedOffer() {
   if (!activeLead) return;
-  const offer_id        = parseInt(document.getElementById('acc_offer_id').value);
-  const final_price     = parseFloat(document.getElementById('acc_price').value);
+  const offer_id           = document.getElementById('acc_offer_id').value;
+  const final_price        = parseFloat(document.getElementById('acc_price').value);
   const net_commission_pct = parseFloat(document.getElementById('acc_net_pct').value) || null;
   if (!offer_id)    { alert('Please select the accepted offer.'); return; }
   if (!final_price) { alert('Please enter the final accepted price.'); return; }
-  await api('PUT', `/api/leads/${activeLead.id}/accepted_offer`, { offer_id, final_price, net_commission_pct });
+  await updateDoc(doc(db, 'leads', activeLead.id), {
+    accepted_offer_id: offer_id,
+    final_accepted_price: final_price,
+    net_commission_pct,
+  });
   await loadLeads();
 }
 
@@ -1126,14 +1183,16 @@ async function saveLead() {
     property_address: document.getElementById('f_property_address').value.trim() || null,
     projected_value:  parseFloat(document.getElementById('f_projected_value').value) || null,
     commission_pct:   parseFloat(document.getElementById('f_commission_pct').value)  || null,
-    linked_lead_id:   parseInt(document.getElementById('f_linked_lead_id').value)    || null,
+    linked_lead_id:   document.getElementById('f_linked_lead_id').value.trim() || null,
     stage: document.getElementById('f_stage').value,
   };
   if (editingId) {
-    await api('PUT', `/api/leads/${editingId}`, body);
+    await updateDoc(doc(db, 'leads', editingId), body);
   } else {
-    const r = await api('POST', '/api/leads', body);
-    activeLead = { id: r.id };
+    body.created_at = new Date().toISOString();
+    body.viewings = []; body.offers = []; body.counter_offers = []; body.remarks = [];
+    const ref = await addDoc(collection(db, 'leads'), body);
+    activeLead = { id: ref.id };
   }
   closeLeadModal();
   await loadLeads();
@@ -1141,7 +1200,7 @@ async function saveLead() {
 }
 async function deleteLead() {
   if (!activeLead || !confirm(`Delete lead for ${activeLead.client_name}? This cannot be undone.`)) return;
-  await api('DELETE', `/api/leads/${activeLead.id}`);
+  await deleteDoc(doc(db, 'leads', activeLead.id));
   closePanel(); await loadLeads();
 }
 
@@ -1173,9 +1232,8 @@ function switchTab(tab) {
 }
 
 // ── commission ─────────────────────────────────────────────────────────────
-async function loadCommissionView() {
-  const data = await api('GET', '/api/commission');
-  renderCommChart(data);
+function loadCommissionView() {
+  renderCommChart(computeCommissionData());
 }
 
 function fmtMonthKey(key) {
@@ -1282,6 +1340,16 @@ function renderCommChart(data) {
   });
 }
 
+
+// ── expose functions to window for inline onclick handlers ─────────────────
+Object.assign(window, {
+  openPanel, closePanel, openNewLeadModal, openEditModal, closeLeadModal,
+  saveLead, deleteLead, switchTab, setCommMode, goToLeads, goToCommMonth,
+  clearLeadsFilter, renderLeads, moveTo, addRemark, addViewing, deleteViewing,
+  addOffer, deleteOffer, addCounterOffer, deleteCounterOffer, setAcceptedOffer,
+  setViewingProb, startEditNotes, cancelEditNotes, saveNotes, setViewStage,
+  updatePctDisplay,
+});
 
 loadLeads().then(() => loadSummaryView());
 </script>
