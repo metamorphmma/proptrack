@@ -274,13 +274,94 @@
     .info-grid { grid-template-columns: 1fr; }
     .add-viewing-form { grid-template-columns: 1fr; }
   }
+
+  /* ── Auth ──────────────────────────────────────────────────────────────── */
+  .auth-screen { position:fixed; inset:0; background:#0a0a0a; z-index:1000; display:flex; align-items:center; justify-content:center; }
+  .auth-card { background:#141414; border:1px solid var(--border-bright); border-radius:16px; width:min(400px,95vw); padding:36px; box-shadow:var(--shadow-lg); }
+  .auth-logo { display:flex; align-items:center; gap:10px; margin-bottom:24px; }
+  .auth-logo .dot { width:10px; height:10px; border-radius:50%; background:var(--red-bright); }
+  .auth-logo span { font-size:18px; font-weight:700; color:var(--white); }
+  .auth-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:22px; }
+  .auth-tab { flex:1; padding:9px; font-size:12px; font-weight:600; background:transparent; color:var(--text-muted); border:none; cursor:pointer; transition:all .15s; }
+  .auth-tab.active { background:var(--red); color:#fff; }
+  .auth-field { margin-bottom:14px; }
+  .auth-field label { display:block; font-size:10px; text-transform:uppercase; letter-spacing:.07em; color:var(--text-muted); margin-bottom:6px; }
+  .auth-field input { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:16px; outline:none; background:var(--surface); color:var(--text); box-sizing:border-box; letter-spacing:.25em; font-family:monospace; }
+  .auth-field input[type=text] { letter-spacing:normal; font-family:inherit; font-size:13px; }
+  .auth-field input:focus { border-color:var(--red); }
+  .auth-error { font-size:12px; color:#f87171; margin-bottom:12px; min-height:16px; }
+  .auth-btn { width:100%; padding:11px; border-radius:8px; border:none; background:var(--red); color:#fff; font-size:13px; font-weight:600; cursor:pointer; transition:background .15s; }
+  .auth-btn:hover { background:var(--red-bright); }
+  .auth-pending { text-align:center; padding:20px; background:#1f1a08; border:1px solid #3a2f10; border-radius:8px; color:#fbbf24; font-size:13px; line-height:1.6; }
+
+  /* ── Admin panel ───────────────────────────────────────────────────────── */
+  #admin-panel { display:none; }
+  .admin-wrap { max-width:760px; margin:0 auto; padding:32px 24px; }
+  .admin-wrap h2 { font-size:18px; font-weight:700; color:var(--white); margin-bottom:24px; }
+  .admin-section { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:20px; }
+  .admin-section h3 { font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-muted); margin-bottom:14px; font-weight:600; border-bottom:1px solid var(--border); padding-bottom:8px; }
+  .user-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .user-row:last-child { border-bottom:none; }
+  .user-row .uname { flex:1; font-size:13px; color:var(--white); font-weight:500; min-width:100px; }
+  .ustatus { font-size:10px; padding:2px 9px; border-radius:20px; font-weight:600; }
+  .ustatus.pending { background:#1f1a08; color:#fbbf24; }
+  .ustatus.approved { background:#0a2018; color:#34d399; }
+  .admin-pw-input { padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; width:90px; background:var(--bg); color:var(--text); outline:none; letter-spacing:.15em; font-family:monospace; }
+  .admin-pw-input:focus { border-color:var(--red); }
+
+  /* ── Change-password modal ─────────────────────────────────────────────── */
+  #changePwModal { position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:400; display:none; align-items:center; justify-content:center; }
+  #changePwModal.open { display:flex; }
+  .chpw-card { background:#141414; border:1px solid var(--border-bright); border-radius:14px; width:min(380px,95vw); padding:28px; }
+  .chpw-card h2 { font-size:15px; font-weight:600; color:var(--white); margin-bottom:20px; }
 </style>
 </head>
 <body>
 
+<!-- ── Login screen ──────────────────────────────────────────────────────── -->
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo"><div class="dot"></div><span>PropTrack</span></div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="showAuthTab('login')">Login</button>
+      <button class="auth-tab" onclick="showAuthTab('register')">Register</button>
+    </div>
+
+    <!-- Login form -->
+    <div id="authLogin">
+      <div class="auth-field"><label>Username</label><input type="text" id="auth_username" placeholder="your name" onkeydown="if(event.key==='Enter')document.getElementById('auth_pin').focus()"/></div>
+      <div class="auth-field"><label>4-Digit PIN</label><input type="password" id="auth_pin" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <div class="auth-error" id="authError"></div>
+      <button class="auth-btn" onclick="doLogin()">Sign In</button>
+    </div>
+
+    <!-- Register form -->
+    <div id="authRegister" style="display:none">
+      <div class="auth-field"><label>Username</label><input type="text" id="reg_username" placeholder="choose a username" /></div>
+      <div class="auth-field"><label>4-Digit PIN</label><input type="password" id="reg_pin" maxlength="4" placeholder="••••"/></div>
+      <div class="auth-field"><label>Confirm PIN</label><input type="password" id="reg_pin2" maxlength="4" placeholder="••••" onkeydown="if(event.key==='Enter')doRegister()"/></div>
+      <div class="auth-error" id="regError"></div>
+      <button class="auth-btn" onclick="doRegister()">Request Access</button>
+    </div>
+
+    <!-- Pending approval message -->
+    <div id="authPending" style="display:none" class="auth-pending">
+      ⏳ Your account is pending admin approval.<br/>Please check back later.
+      <br/><br/><button class="btn btn-ghost btn-sm" onclick="showAuthTab('login')">← Back to Login</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main app (hidden until logged in) ───────────────────────────────── -->
+<div id="appShell" style="display:none">
+
 <header>
-  <div class="logo"><div class="dot"></div>PropTrack <span>Welcome, Martyn Lim</span></div>
-  <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
+  <div class="logo"><div class="dot"></div>PropTrack <span id="headerUser"></span></div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="btn btn-ghost btn-sm" onclick="openChangePw()">Change PIN</button>
+    <button class="btn btn-primary" onclick="openNewLeadModal()">+ New Lead</button>
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()">Logout</button>
+  </div>
 </header>
 
 <nav class="tab-nav">
@@ -336,7 +417,43 @@
   </div><!-- /commission-view -->
 </main>
 
-<!-- Detail Panel -->
+</div><!-- /appShell -->
+
+<!-- ── Admin panel (separate from appShell) ────────────────────────────── -->
+<div id="admin-panel" style="display:none">
+  <header>
+    <div class="logo"><div class="dot"></div>PropTrack <span>Admin</span></div>
+    <button class="btn btn-ghost btn-sm" onclick="doLogout()">Logout</button>
+  </header>
+  <div class="admin-wrap">
+    <h2>User Management</h2>
+    <div class="admin-section">
+      <h3>Pending Approval</h3>
+      <div id="adminPending"><p style="font-size:12px;color:var(--text-muted)">No pending requests.</p></div>
+    </div>
+    <div class="admin-section">
+      <h3>Approved Users</h3>
+      <div id="adminUsers"><p style="font-size:12px;color:var(--text-muted)">No users yet.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Change PIN modal ──────────────────────────────────────────────────── -->
+<div id="changePwModal">
+  <div class="chpw-card">
+    <h2>Change PIN</h2>
+    <div class="auth-field"><label>Current PIN</label><input type="password" id="cpw_old" maxlength="4" placeholder="••••"/></div>
+    <div class="auth-field"><label>New PIN</label><input type="password" id="cpw_new" maxlength="4" placeholder="••••"/></div>
+    <div class="auth-field"><label>Confirm New PIN</label><input type="password" id="cpw_new2" maxlength="4" placeholder="••••"/></div>
+    <div class="auth-error" id="cpwError"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button class="btn btn-ghost" onclick="closeChangePw()">Cancel</button>
+      <button class="btn btn-primary" onclick="doChangePw()">Update PIN</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Panel (inside appShell scope, but placed here for z-index) -->
 <div class="detail-overlay" id="detailOverlay" onclick="closePanel()"></div>
 <div class="detail-panel" id="detailPanel">
   <div class="panel-header">
@@ -435,6 +552,168 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+let currentUser = null; // { id, username, role }
+
+async function seedDefaultUsers() {
+  const snap = await getDocs(collection(db, 'users'));
+  if (!snap.empty) return;
+  const defaults = [
+    { username: 'admin',  password: '0000', role: 'admin', status: 'approved' },
+    { username: 'Martyn', password: '4829', role: 'user',  status: 'approved' },
+    { username: 'Theo',   password: '7361', role: 'user',  status: 'approved' },
+  ];
+  for (const u of defaults) {
+    await addDoc(collection(db, 'users'), { ...u, created_at: new Date().toISOString() });
+  }
+}
+
+function showAuthTab(tab) {
+  document.getElementById('authLogin').style.display    = tab === 'login'    ? '' : 'none';
+  document.getElementById('authRegister').style.display = tab === 'register' ? '' : 'none';
+  document.getElementById('authPending').style.display  = tab === 'pending'  ? '' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((b, i) =>
+    b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'register'))
+  );
+  document.getElementById('authError').textContent = '';
+  document.getElementById('regError').textContent  = '';
+}
+
+async function doLogin() {
+  const username = document.getElementById('auth_username').value.trim();
+  const pin      = document.getElementById('auth_pin').value.trim();
+  const errEl    = document.getElementById('authError');
+  errEl.textContent = '';
+  if (!username || !pin) { errEl.textContent = 'Please enter username and PIN.'; return; }
+
+  const snap = await getDocs(collection(db, 'users'));
+  const match = snap.docs.find(d => {
+    const u = d.data();
+    return u.username.toLowerCase() === username.toLowerCase() && u.password === pin;
+  });
+
+  if (!match) { errEl.textContent = 'Incorrect username or PIN.'; return; }
+  const u = match.data();
+  if (u.status === 'pending') { showAuthTab('pending'); return; }
+  if (u.status === 'rejected') { errEl.textContent = 'Your registration was not approved.'; return; }
+
+  currentUser = { id: match.id, username: u.username, role: u.role };
+  document.getElementById('authScreen').style.display = 'none';
+
+  if (u.role === 'admin') {
+    document.getElementById('admin-panel').style.display = '';
+    loadAdminPanel();
+  } else {
+    document.getElementById('appShell').style.display = '';
+    document.getElementById('headerUser').textContent = u.username;
+    await loadLeads();
+  }
+}
+
+async function doRegister() {
+  const username = document.getElementById('reg_username').value.trim();
+  const pin      = document.getElementById('reg_pin').value.trim();
+  const pin2     = document.getElementById('reg_pin2').value.trim();
+  const errEl    = document.getElementById('regError');
+  errEl.textContent = '';
+  if (!username) { errEl.textContent = 'Please enter a username.'; return; }
+  if (!/^\d{4}$/.test(pin)) { errEl.textContent = 'PIN must be exactly 4 digits.'; return; }
+  if (pin !== pin2) { errEl.textContent = 'PINs do not match.'; return; }
+
+  const snap = await getDocs(collection(db, 'users'));
+  const taken = snap.docs.some(d => d.data().username.toLowerCase() === username.toLowerCase());
+  if (taken) { errEl.textContent = 'Username already taken.'; return; }
+
+  await addDoc(collection(db, 'users'), {
+    username, password: pin, role: 'user', status: 'pending',
+    created_at: new Date().toISOString(),
+  });
+  showAuthTab('pending');
+}
+
+function doLogout() {
+  currentUser = null;
+  document.getElementById('appShell').style.display   = 'none';
+  document.getElementById('admin-panel').style.display = 'none';
+  document.getElementById('authScreen').style.display  = '';
+  document.getElementById('auth_username').value = '';
+  document.getElementById('auth_pin').value      = '';
+  showAuthTab('login');
+}
+
+// ── Admin ──────────────────────────────────────────────────────────────────
+async function loadAdminPanel() {
+  const snap = await getDocs(collection(db, 'users'));
+  const users = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.role !== 'admin');
+
+  const pending  = users.filter(u => u.status === 'pending');
+  const approved = users.filter(u => u.status === 'approved');
+
+  const pendingEl = document.getElementById('adminPending');
+  pendingEl.innerHTML = pending.length
+    ? pending.map(u => `
+      <div class="user-row">
+        <span class="uname">${esc(u.username)}</span>
+        <span class="ustatus pending">Pending</span>
+        <button class="btn btn-primary btn-sm" onclick="approveUser('${u.id}')">Approve</button>
+        <button class="btn btn-danger btn-sm"  onclick="rejectUser('${u.id}')">Reject</button>
+      </div>`).join('')
+    : '<p style="font-size:12px;color:var(--text-muted)">No pending requests.</p>';
+
+  const usersEl = document.getElementById('adminUsers');
+  usersEl.innerHTML = approved.length
+    ? approved.map(u => `
+      <div class="user-row">
+        <span class="uname">${esc(u.username)}</span>
+        <span class="ustatus approved">Approved</span>
+        <input class="admin-pw-input" id="apw_${u.id}" type="password" maxlength="4" placeholder="new PIN"/>
+        <button class="btn btn-ghost btn-sm" onclick="adminChangePw('${u.id}')">Set PIN</button>
+      </div>`).join('')
+    : '<p style="font-size:12px;color:var(--text-muted)">No approved users.</p>';
+}
+
+async function approveUser(id) {
+  await updateDoc(doc(db, 'users', id), { status: 'approved' });
+  loadAdminPanel();
+}
+async function rejectUser(id) {
+  if (!confirm('Reject and delete this registration?')) return;
+  await deleteDoc(doc(db, 'users', id));
+  loadAdminPanel();
+}
+async function adminChangePw(id) {
+  const pin = document.getElementById('apw_' + id).value.trim();
+  if (!/^\d{4}$/.test(pin)) { alert('PIN must be exactly 4 digits.'); return; }
+  await updateDoc(doc(db, 'users', id), { password: pin });
+  document.getElementById('apw_' + id).value = '';
+  alert('PIN updated.');
+}
+
+// ── Change own PIN ─────────────────────────────────────────────────────────
+function openChangePw() {
+  ['cpw_old','cpw_new','cpw_new2'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('cpwError').textContent = '';
+  document.getElementById('changePwModal').classList.add('open');
+}
+function closeChangePw() { document.getElementById('changePwModal').classList.remove('open'); }
+async function doChangePw() {
+  const oldPin = document.getElementById('cpw_old').value.trim();
+  const newPin = document.getElementById('cpw_new').value.trim();
+  const newPin2= document.getElementById('cpw_new2').value.trim();
+  const errEl  = document.getElementById('cpwError');
+  errEl.textContent = '';
+  if (!/^\d{4}$/.test(newPin))   { errEl.textContent = 'New PIN must be 4 digits.'; return; }
+  if (newPin !== newPin2)         { errEl.textContent = 'PINs do not match.'; return; }
+
+  const snap = await getDocs(collection(db, 'users'));
+  const me   = snap.docs.find(d => d.id === currentUser.id);
+  if (!me || me.data().password !== oldPin) { errEl.textContent = 'Current PIN is incorrect.'; return; }
+
+  await updateDoc(doc(db, 'users', currentUser.id), { password: newPin });
+  closeChangePw();
+  alert('PIN updated successfully.');
+}
 
 // ── constants ──────────────────────────────────────────────────────────────
 const STAGES = [
@@ -1343,6 +1622,12 @@ function renderCommChart(data) {
 
 // ── expose functions to window for inline onclick handlers ─────────────────
 Object.assign(window, {
+  // auth
+  showAuthTab, doLogin, doRegister, doLogout,
+  openChangePw, closeChangePw, doChangePw,
+  // admin
+  approveUser, rejectUser, adminChangePw, loadAdminPanel,
+  // app
   openPanel, closePanel, openNewLeadModal, openEditModal, closeLeadModal,
   saveLead, deleteLead, switchTab, setCommMode, goToLeads, goToCommMonth,
   clearLeadsFilter, renderLeads, moveTo, addRemark, addViewing, deleteViewing,
@@ -1351,7 +1636,8 @@ Object.assign(window, {
   updatePctDisplay,
 });
 
-loadLeads().then(() => loadSummaryView());
+// Seed default users on first run, then wait for login
+seedDefaultUsers();
 </script>
 </body>
 </html>
