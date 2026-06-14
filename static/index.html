@@ -295,19 +295,22 @@
   .auth-pending { text-align:center; padding:20px; background:#1f1a08; border:1px solid #3a2f10; border-radius:8px; color:#fbbf24; font-size:13px; line-height:1.6; }
 
   /* ── Admin panel ───────────────────────────────────────────────────────── */
-  #admin-panel { display:none; }
   .admin-wrap { max-width:760px; margin:0 auto; padding:32px 24px; }
   .admin-wrap h2 { font-size:18px; font-weight:700; color:var(--white); margin-bottom:24px; }
   .admin-section { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:20px; }
   .admin-section h3 { font-size:10px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-muted); margin-bottom:14px; font-weight:600; border-bottom:1px solid var(--border); padding-bottom:8px; }
-  .user-row { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  .user-row { display:grid; grid-template-columns: 1fr 80px 90px 90px 80px; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+  .user-row.header-row { padding-bottom:6px; }
   .user-row:last-child { border-bottom:none; }
-  .user-row .uname { flex:1; font-size:13px; color:var(--white); font-weight:500; min-width:100px; }
-  .ustatus { font-size:10px; padding:2px 9px; border-radius:20px; font-weight:600; }
-  .ustatus.pending { background:#1f1a08; color:#fbbf24; }
+  .user-row .uname { font-size:13px; color:var(--white); font-weight:500; }
+  .user-row .ucol { font-size:12px; color:var(--text-dim); }
+  .user-row .ucol-label { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); }
+  .ustatus { font-size:10px; padding:2px 9px; border-radius:20px; font-weight:600; display:inline-block; }
+  .ustatus.pending  { background:#1f1a08; color:#fbbf24; }
   .ustatus.approved { background:#0a2018; color:#34d399; }
-  .admin-pw-input { padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; width:90px; background:var(--bg); color:var(--text); outline:none; letter-spacing:.15em; font-family:monospace; }
+  .admin-pw-input { padding:5px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px; width:80px; background:var(--bg); color:var(--text); outline:none; letter-spacing:.15em; font-family:monospace; }
   .admin-pw-input:focus { border-color:var(--red); }
+  .current-pin { font-family:monospace; font-size:13px; color:var(--text-dim); letter-spacing:.15em; }
 
   .auth-success { font-size:12px; color:#34d399; margin-bottom:12px; min-height:16px; }
 </style>
@@ -599,7 +602,7 @@ async function doLogin() {
   document.getElementById('authScreen').style.display = 'none';
 
   if (u.role === 'admin') {
-    document.getElementById('admin-panel').style.display = '';
+    document.getElementById('admin-panel').style.display = 'block';
     loadAdminPanel();
   } else {
     document.getElementById('appShell').style.display = '';
@@ -648,26 +651,47 @@ async function loadAdminPanel() {
   const approved = users.filter(u => u.status === 'approved');
 
   const pendingEl = document.getElementById('adminPending');
-  pendingEl.innerHTML = pending.length
-    ? pending.map(u => `
+  if (pending.length) {
+    pendingEl.innerHTML = `
+      <div class="user-row header-row">
+        <span class="ucol-label">Username</span>
+        <span class="ucol-label">PIN</span>
+        <span class="ucol-label">Status</span>
+        <span></span><span></span>
+      </div>` +
+      pending.map(u => `
       <div class="user-row">
         <span class="uname">${esc(u.username)}</span>
+        <span class="current-pin">${esc(u.password)}</span>
         <span class="ustatus pending">Pending</span>
         <button class="btn btn-primary btn-sm" onclick="approveUser('${u.id}')">Approve</button>
         <button class="btn btn-danger btn-sm"  onclick="rejectUser('${u.id}')">Reject</button>
-      </div>`).join('')
-    : '<p style="font-size:12px;color:var(--text-muted)">No pending requests.</p>';
+      </div>`).join('');
+  } else {
+    pendingEl.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No pending requests.</p>';
+  }
 
   const usersEl = document.getElementById('adminUsers');
-  usersEl.innerHTML = approved.length
-    ? approved.map(u => `
+  if (approved.length) {
+    usersEl.innerHTML = `
+      <div class="user-row header-row">
+        <span class="ucol-label">Username</span>
+        <span class="ucol-label">Current PIN</span>
+        <span class="ucol-label">Status</span>
+        <span class="ucol-label">New PIN</span>
+        <span></span>
+      </div>` +
+      approved.map(u => `
       <div class="user-row">
         <span class="uname">${esc(u.username)}</span>
+        <span class="current-pin">${esc(u.password)}</span>
         <span class="ustatus approved">Approved</span>
-        <input class="admin-pw-input" id="apw_${u.id}" type="password" maxlength="4" placeholder="new PIN"/>
+        <input class="admin-pw-input" id="apw_${u.id}" type="text" maxlength="4" placeholder="new PIN"/>
         <button class="btn btn-ghost btn-sm" onclick="adminChangePw('${u.id}')">Set PIN</button>
-      </div>`).join('')
-    : '<p style="font-size:12px;color:var(--text-muted)">No approved users.</p>';
+      </div>`).join('');
+  } else {
+    usersEl.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No approved users yet.</p>';
+  }
 }
 
 async function approveUser(id) {
